@@ -1,7 +1,7 @@
 'use strict';
 
 // ════════════════════════════════════════════════════════════════════════════
-// cc-web server — thin entry point that wires extracted modules together.
+// agent-web server — thin entry point that wires extracted modules together.
 //
 // All business logic lives in lib/ modules:
 //   shared-state, logger, auth, notify, config-manager, session-store,
@@ -290,11 +290,11 @@ function formatDoctorMessage(agent) {
 
 function formatResumeMessage(session, agent) {
   const na = sessions.normalizeAgent(agent);
-  if (!session) return '当前没有载入会话。请从左侧会话列表选择 cc-web 会话，或使用"导入本地会话"导入 Claude/Codex 原生历史。';
+  if (!session) return '当前没有载入会话。请从左侧会话列表选择 agent-web 会话，或使用"导入本地会话"导入 Claude/Codex 原生历史。';
   const runtimeId = sessions.getRuntimeSessionId(session);
   const native = runtimeId ? `当前会话已绑定原生会话 ID：${runtimeId}` : '当前会话尚未建立原生会话 ID。发送第一条消息后会自动建立。';
-  if (na === 'claude' || na === 'codex' || na === 'gemini') return `${native}\ncc-web 会在同一会话继续发送时自动 resume；如果要恢复其他原生会话，请从侧边栏导入。`;
-  return `${native}\nHermes 使用 Gateway conversation 维持上下文；cc-web 目前只管理本地会话记录。`;
+  if (na === 'claude' || na === 'codex' || na === 'gemini') return `${native}\nagent-web 会在同一会话继续发送时自动 resume；如果要恢复其他原生会话，请从侧边栏导入。`;
+  return `${native}\nHermes 使用 Gateway conversation 维持上下文；agent-web 目前只管理本地会话记录。`;
 }
 
 // ── Create router ──────────────────────────────────────────────────────────
@@ -428,7 +428,7 @@ function handleServerListenError(err) {
     plog('WARN', 'server_port_in_use_retry', { port: PORT, host: '0.0.0.0' });
     if (killPortOccupant(PORT)) { try { server.listen(PORT, '0.0.0.0'); } catch {} return; }
     plog('ERROR', 'server_port_in_use', { port: PORT, error: err.message });
-    console.error(`CC-Web server failed: 0.0.0.0:${PORT} is already in use.`);
+    console.error(`Agent-Web server failed: 0.0.0.0:${PORT} is already in use.`);
     process.exit(98); return;
   }
   plog('ERROR', 'server_error', { error: err?.message || String(err) });
@@ -449,5 +449,5 @@ process.on('unhandledRejection', (reason) => {
 
 server.listen(PORT, '0.0.0.0', () => {
   auth.ensureAuthLoaded();
-  console.log(`CC-Web server listening on 0.0.0.0:${PORT}`);
+  console.log(`Agent-Web server listening on 0.0.0.0:${PORT}`);
 });

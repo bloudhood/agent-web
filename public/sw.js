@@ -1,8 +1,8 @@
-// CC-Web Service Worker — handles push notifications on mobile
+// Agent-Web Service Worker — handles push notifications on mobile
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SHOW_NOTIFICATION') {
     event.waitUntil(
-      self.registration.showNotification(event.data.title || 'CC-Web', {
+      self.registration.showNotification(event.data.title || 'Agent-Web', {
         body: event.data.body || '',
         icon: event.data.icon || undefined,
         tag: 'cc-web-task',

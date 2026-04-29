@@ -1,4 +1,4 @@
-// === CC-Web Chat Module ===
+// === Agent-Web Chat Module ===
 // Messages, tool calls, AskUser, generating state, rendering.
 window.CCWeb = window.CCWeb || {};
 
@@ -687,10 +687,10 @@ window.CCWeb = window.CCWeb || {};
       return '删除本会话将同步删去本地 Codex rollout 历史与线程记录，不可恢复。确认删除？';
     }
     if (normalized === 'hermes') {
-      return '删除本会话只会移除 cc-web 本地记录，不会删除 WSL 中的 Hermes 原生历史。确认删除？';
+      return '删除本会话只会移除 agent-web 本地记录，不会删除 WSL 中的 Hermes 原生历史。确认删除？';
     }
     if (normalized === 'gemini') {
-      return '删除本会话只会移除 cc-web 本地记录，不会清理 Gemini CLI 原生会话文件。确认删除？';
+      return '删除本会话只会移除 agent-web 本地记录，不会清理 Gemini CLI 原生会话文件。确认删除？';
     }
     return '删除本会话将同步删去本地 Claude 中的会话历史，不可恢复。确认删除？';
   }

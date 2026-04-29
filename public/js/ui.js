@@ -1,4 +1,4 @@
-// === CC-Web UI Module ===
+// === Agent-Web UI Module ===
 // Theme, scrollbar, sidebar, toast, viewport, pickers, slash commands, input events.
 window.CCWeb = window.CCWeb || {};
 
@@ -18,7 +18,7 @@ window.CCWeb = window.CCWeb || {};
   const MODE_PICKER_OPTIONS = [
     { value: 'yolo', label: 'YOLO', desc: '跳过所有权限检查' },
     { value: 'plan', label: 'Plan', desc: '执行前需确认计划' },
-    { value: 'default', label: '默认', desc: 'CLI 原生审批；cc-web 暂不提供网页批准/拒绝面板' },
+    { value: 'default', label: '默认', desc: 'CLI 原生审批；agent-web 暂不提供网页批准/拒绝面板' },
   ];
 
   const THEME_OPTIONS = [
@@ -517,7 +517,7 @@ window.CCWeb = window.CCWeb || {};
   function showModelPicker() {
     const state = CCWeb.state;
     if (state.currentAgent === 'hermes') {
-      CCWeb.chat.appendSystemMessage('Hermes 使用 WSL 中 Hermes Gateway 的当前默认模型。cc-web 暂不直接切换 Hermes provider/model。');
+      CCWeb.chat.appendSystemMessage('Hermes 使用 WSL 中 Hermes Gateway 的当前默认模型。agent-web 暂不直接切换 Hermes provider/model。');
       return;
     }
     if (state.currentAgent === 'gemini') {
@@ -664,7 +664,7 @@ window.CCWeb = window.CCWeb || {};
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.ready.then((reg) => {
-        reg.showNotification('CC-Web', {
+        reg.showNotification('Agent-Web', {
           body: `「${title}」任务完成`,
           tag: 'cc-web-task',
           renotify: true,
@@ -1080,7 +1080,7 @@ window.CCWeb = window.CCWeb || {};
         CCWeb.send({ type: 'set_mode', sessionId: state.currentSessionId, mode: state.currentMode });
       }
       if (state.currentMode === 'default') {
-        CCWeb.chat.appendSystemMessage('默认模式会交给底层 CLI 自己处理审批；cc-web 当前只负责转发运行结果，尚未提供统一的网页批准/拒绝面板。需要可预期行为时请使用 Plan 或 YOLO。');
+        CCWeb.chat.appendSystemMessage('默认模式会交给底层 CLI 自己处理审批；agent-web 当前只负责转发运行结果，尚未提供统一的网页批准/拒绝面板。需要可预期行为时请使用 Plan 或 YOLO。');
       }
     });
 

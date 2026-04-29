@@ -1,4 +1,4 @@
-// === CC-Web Frontend ===
+// === Agent-Web Frontend ===
 (function () {
   'use strict';
 
@@ -24,7 +24,7 @@
   CCWeb.MODE_PICKER_OPTIONS = [
     { value: 'yolo', label: 'YOLO', desc: '跳过所有权限检查' },
     { value: 'plan', label: 'Plan', desc: '执行前需确认计划' },
-    { value: 'default', label: '默认', desc: 'CLI 原生审批；cc-web 暂不提供网页批准/拒绝面板' },
+    { value: 'default', label: '默认', desc: 'CLI 原生审批；agent-web 暂不提供网页批准/拒绝面板' },
   ];
 
   // --- State ---

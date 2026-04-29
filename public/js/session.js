@@ -1,4 +1,4 @@
-// === CC-Web Session Module ===
+// === Agent-Web Session Module ===
 // Session list, LRU cache, switch, create, delete, import modals.
 window.CCWeb = window.CCWeb || {};
 
@@ -943,7 +943,7 @@ window.CCWeb = window.CCWeb || {};
             if (sess.alreadyImported) {
               if (!confirm('已导入过此会话，重新导入将覆盖已有内容。确认继续？')) return;
             } else {
-              if (!confirm('由于 cc-web 与本地 CLI 的逻辑不同，导入会话需要解析后方可展示，导入后将覆盖已有内容。确认继续？')) return;
+              if (!confirm('由于 agent-web 与本地 CLI 的逻辑不同，导入会话需要解析后方可展示，导入后将覆盖已有内容。确认继续？')) return;
             }
             close();
             CCWeb.send({ type: 'import_native_session', sessionId: sess.sessionId, projectDir: group.dir });

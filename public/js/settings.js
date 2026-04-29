@@ -1,4 +1,4 @@
-// === CC-Web Settings Module ===
+// === Agent-Web Settings Module ===
 // Settings panel, sub-pages (theme, notify, CC Switch, dev, password), Claude/Codex config UI.
 window.CCWeb = window.CCWeb || {};
 
@@ -40,7 +40,7 @@ window.CCWeb = window.CCWeb || {};
   const MODE_PICKER_OPTIONS = [
     { value: 'yolo', label: 'YOLO', desc: '跳过所有权限检查' },
     { value: 'plan', label: 'Plan', desc: '执行前需确认计划' },
-    { value: 'default', label: '默认', desc: 'CLI 原生审批；cc-web 暂不提供网页批准/拒绝面板' },
+    { value: 'default', label: '默认', desc: 'CLI 原生审批；agent-web 暂不提供网页批准/拒绝面板' },
   ];
 
   // --- Local state ---
@@ -858,7 +858,7 @@ window.CCWeb = window.CCWeb || {};
           <h3>${existing ? '编辑仓库' : '添加仓库'}</h3>
           <button class="settings-close" id="repo-modal-close">&times;</button>
         </div>
-        <div class="settings-field"><label>名称</label><input type="text" id="repo-name" placeholder="cc-web" value="${escapeHtml(draft.name)}"></div>
+        <div class="settings-field"><label>名称</label><input type="text" id="repo-name" placeholder="agent-web" value="${escapeHtml(draft.name)}"></div>
         <div class="settings-field"><label>URL</label><input type="text" id="repo-url" placeholder="https://github.com/user/repo" value="${escapeHtml(draft.url)}"></div>
         <div class="settings-field"><label>分支</label><input type="text" id="repo-branch" placeholder="main" value="${escapeHtml(draft.branch || 'main')}"></div>
         <div class="settings-field"><label>备注</label><input type="text" id="repo-notes" placeholder="说明" value="${escapeHtml(draft.notes || '')}"></div>

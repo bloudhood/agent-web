@@ -1,4 +1,4 @@
-// === CC-Web Helpers Module ===
+// === Agent-Web Helpers Module ===
 // Pure utility functions with no shared state dependencies.
 window.CCWeb = window.CCWeb || {};
 
@@ -47,7 +47,7 @@ window.CCWeb = window.CCWeb || {};
   function buildWelcomeMarkup(agent) {
     const AGENT_LABELS = { claude: 'Claude', codex: 'Codex', hermes: 'Hermes', gemini: 'Gemini' };
     const label = AGENT_LABELS[agent] || AGENT_LABELS.claude;
-    return `<div class="welcome-msg"><div class="welcome-icon">✿</div><h3>欢迎使用 CC-Web</h3><p>开始与 ${label} 对话</p></div>`;
+    return `<div class="welcome-msg"><div class="welcome-icon">✿</div><h3>欢迎使用 Agent-Web</h3><p>开始与 ${label} 对话</p></div>`;
   }
 
   function deepClone(value) {
