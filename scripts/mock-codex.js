@@ -68,7 +68,7 @@ function readStdin() {
     fs.writeFileSync(statePath, JSON.stringify(state));
   }
 
-  const isInitPrompt = input === '/init' || input.includes('You are running cc-web\'s /init for a Codex session.');
+  const isInitPrompt = input === '/init' || input.includes('You are running agent-web\'s /init for a Codex session.');
 
   if (isInitPrompt) {
     const agentsPath = path.join(process.cwd(), 'AGENTS.md');
@@ -76,15 +76,16 @@ function readStdin() {
   }
 
   if (input === 'trigger codex context limit' && !state.compacted) {
-    const line = `${JSON.stringify({
+    state.compacted = true;
+    fs.writeFileSync(statePath, JSON.stringify(state));
+    process.stdout.write(`${JSON.stringify({
       type: 'turn.failed',
       error: { message: 'Context window exceeded. Please use /compact and retry.' },
-    })}\n`;
-    // Write synchronously via fd to avoid buffering, then drain before exit
-    // so the FileTailer on the server side can read turn.failed from disk.
-    await new Promise((resolve) => { process.stdout.write(line, () => resolve()); });
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    process.exit(1);
+    })}\n`);
+    // Let the process exit naturally so Node.js drains stdout before shutdown.
+    // process.exit(1) on Linux may kill the process before non-TTY buffers flush.
+    process.exitCode = 1;
+    return;
   }
 
   const responseText = input === '/compact'
