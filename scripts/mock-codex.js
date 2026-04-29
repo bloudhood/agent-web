@@ -5,6 +5,10 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
+function writeLine(obj) {
+  fs.writeSync(1, `${JSON.stringify(obj)}\n`);
+}
+
 function readStdin() {
   return new Promise((resolve) => {
     let data = '';
@@ -16,7 +20,7 @@ function readStdin() {
 
 (async function main() {
   const args = process.argv.slice(2);
-  // cc-web can place `resume` after other `codex exec` options (e.g. --json, -s).
+  // agent-web can place `resume` after other `codex exec` options (e.g. --json, -s).
   const isResume = args[0] === 'exec' && args.includes('resume');
   const threadId = (() => {
     if (!isResume) return `mock-${crypto.randomUUID()}`;
@@ -35,11 +39,11 @@ function readStdin() {
     state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
   } catch {}
 
-  process.stdout.write(`${JSON.stringify({ type: 'thread.started', thread_id: threadId })}\n`);
-  process.stdout.write(`${JSON.stringify({ type: 'turn.started' })}\n`);
+  writeLine({ type: 'thread.started', thread_id: threadId });
+  writeLine({ type: 'turn.started' });
 
   if (/pwd/i.test(input)) {
-    process.stdout.write(`${JSON.stringify({
+    writeLine({
       type: 'item.started',
       item: {
         id: 'item_cmd',
@@ -49,8 +53,8 @@ function readStdin() {
         exit_code: null,
         status: 'in_progress',
       },
-    })}\n`);
-    process.stdout.write(`${JSON.stringify({
+    });
+    writeLine({
       type: 'item.completed',
       item: {
         id: 'item_cmd',
@@ -60,7 +64,7 @@ function readStdin() {
         exit_code: 0,
         status: 'completed',
       },
-    })}\n`);
+    });
   }
 
   if (input === '/compact') {
@@ -78,12 +82,11 @@ function readStdin() {
   if (input === 'trigger codex context limit' && !state.compacted) {
     state.compacted = true;
     fs.writeFileSync(statePath, JSON.stringify(state));
-    process.stdout.write(`${JSON.stringify({
+    writeLine({
       type: 'turn.failed',
       error: { message: 'Context window exceeded. Please use /compact and retry.' },
-    })}\n`);
-    // Let the process exit naturally so Node.js drains stdout before shutdown.
-    // process.exit(1) on Linux may kill the process before non-TTY buffers flush.
+    });
+    // fs.writeSync writes directly to the fd — no stream buffer to flush.
     process.exitCode = 1;
     return;
   }
@@ -94,21 +97,21 @@ function readStdin() {
       ? 'Codex init finished.'
     : `Codex mock handled (${imageCount} image): ${input}`;
 
-  process.stdout.write(`${JSON.stringify({
+  writeLine({
     type: 'item.completed',
     item: {
       id: 'item_msg',
       type: 'agent_message',
       text: responseText,
     },
-  })}\n`);
+  });
 
   if (input === 'trigger codex context limit' && state.compacted) {
     try { fs.unlinkSync(statePath); } catch {}
   }
 
-  process.stdout.write(`${JSON.stringify({
+  writeLine({
     type: 'turn.completed',
     usage: { input_tokens: 10, cached_input_tokens: 2, output_tokens: 5 },
-  })}\n`);
+  });
 })();
