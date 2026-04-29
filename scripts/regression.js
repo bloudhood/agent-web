@@ -764,7 +764,21 @@ async function main() {
     assert(!fs.existsSync(path.join(sessionsDir, `${importedSessionId}.json`)), 'Deleting Codex session did not remove session JSON');
     assert(!fs.existsSync(codexFixture.rolloutPath), 'Deleting Codex session did not remove rollout file');
     if (HAS_SQLITE3) {
-      assert(sql(codexFixture.stateDb, `select count(*) from threads where id='${codexFixture.threadId}'`) === '0', 'Deleting Codex session did not remove thread row');
+      try {
+        assert(sql(codexFixture.stateDb, `select count(*) from threads where id='${codexFixture.threadId}'`) === '0', 'Deleting Codex session did not remove thread row');
+      } catch (dbAssertErr) {
+        // Dump server process log to help diagnose silent sqlite3 failures.
+        const serverLogPath = path.join(logsDir, 'process.log');
+        if (fs.existsSync(serverLogPath)) {
+          const logLines = fs.readFileSync(serverLogPath, 'utf8').trim().split('\n');
+          const relevantLines = logLines.filter((line) => /codex_delete|sqlite3|thread/i.test(line));
+          if (relevantLines.length > 0) {
+            console.error('  Server codex-delete log entries:');
+            for (const line of relevantLines) console.error(`    ${line}`);
+          }
+        }
+        throw dbAssertErr;
+      }
     } else {
       console.log('  SKIP: sqlite3 not available (Codex DB delete assertion)');
     }
