@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>CC-Web</title>
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="512x512" href="favicon-512.png">
+  <link rel="apple-touch-icon" href="favicon-512.png">
+  <script>
+    (function () {
+      var VALID_THEMES = ['washi', 'washi-dark', 'coolvibe'];
+      var saved = localStorage.getItem('cc-web-theme');
+      if (!saved) {
+        saved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'washi-dark' : 'washi';
+      }
+      if (!VALID_THEMES.includes(saved)) saved = 'washi';
+      document.documentElement.dataset.theme = saved;
+    })();
+  </script>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+</head>
+<body>
+  <!-- Login -->
+  <div id="login-overlay" class="login-overlay">
+    <div class="login-box">
+      <div class="login-logo">CC</div>
+      <h2>CC-Web</h2>
+      <p>Local Agent Web Chat</p>
+      <form id="login-form">
+        <div class="login-pw-wrapper">
+          <input type="password" id="login-password" placeholder="输入密码" autocomplete="current-password" autofocus>
+          <button type="button" class="pw-toggle-btn" id="pw-toggle-btn" aria-label="显示/隐藏密码">
+            <svg id="pw-eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+              <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+          </button>
+        </div>
+        <label class="remember-label">
+          <input type="checkbox" id="remember-pw"> 记住密码
+        </label>
+        <button type="submit">登录</button>
+      </form>
+      <div id="login-error" class="login-error" hidden>密码错误</div>
+    </div>
+  </div>
+
+  <!-- Main App -->
+  <div id="app" class="app" hidden>
+    <!-- Sidebar -->
+    <aside id="sidebar" class="sidebar">
+      <div class="sidebar-header">
+        <button id="new-chat-btn" class="new-chat-btn">+ 新会话</button>
+        <button id="import-session-btn" class="import-session-link" title="导入本地 CLI 会话">导入</button>
+      </div>
+      <div id="session-list" class="session-list"></div>
+      <div class="sidebar-footer">
+        <button id="settings-btn" class="settings-btn" title="设置">⚙</button>
+        <span class="brand">CC-Web</span>
+      </div>
+    </aside>
+
+    <div id="sidebar-overlay" class="sidebar-overlay" hidden></div>
+
+    <!-- Chat -->
+    <main class="chat-main">
+      <header class="chat-header">
+        <button id="menu-btn" class="menu-btn" title="菜单">☰</button>
+        <span id="chat-title" class="chat-title">新会话</span>
+        <select id="agent-select" class="agent-select" title="Agent">
+          <option value="claude">Claude</option>
+          <option value="codex">Codex</option>
+          <option value="hermes">Hermes</option>
+          <option value="gemini">Gemini</option>
+        </select>
+        <span id="chat-runtime-state" class="chat-runtime-state" hidden>运行中</span>
+        <span id="chat-cwd" class="chat-cwd" hidden></span>
+        <select id="mode-select" class="mode-select" title="权限模式">
+          <option value="yolo">YOLO</option>
+          <option value="default">默认</option>
+          <option value="plan">Plan</option>
+        </select>
+        <span id="cost-display" class="cost-display" hidden></span>
+      </header>
+
+      <div class="messages-wrap">
+        <div id="conn-banner" class="conn-banner" hidden>
+          <span class="pulse-dot"></span>连接已断开，正在重连…
+        </div>
+        <div id="messages" class="messages">
+          <div class="welcome-msg">
+            <div class="welcome-icon">✿</div>
+            <h3>欢迎使用 CC-Web</h3>
+            <p>开始与 Claude 对话</p>
+          </div>
+        </div>
+        <div class="custom-scrollbar" id="custom-scrollbar">
+          <div class="custom-scrollbar-thumb" id="custom-scrollbar-thumb"></div>
+        </div>
+      </div>
+
+      <!-- Slash command menu -->
+      <div id="cmd-menu" class="cmd-menu" hidden></div>
+
+      <div class="input-area">
+        <div id="attachment-tray" class="attachment-tray" hidden></div>
+        <div class="input-wrapper">
+          <input id="image-upload-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden>
+          <button id="attach-btn" class="attach-btn" title="上传图片" type="button">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21.44 11.05l-8.49 8.49a6 6 0 1 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+            </svg>
+          </button>
+          <textarea id="msg-input" rows="1" placeholder="输入消息… 输入 / 查看指令" autocomplete="off"></textarea>
+          <button id="send-btn" class="send-btn" title="发送">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+          </button>
+          <button id="abort-btn" class="abort-btn" title="停止" hidden>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <rect x="6" y="6" width="12" height="12" rx="2"></rect>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div id="session-loading-overlay" class="session-loading-overlay" hidden aria-live="polite" aria-hidden="true">
+    <div class="session-loading-card" role="status" aria-busy="true">
+      <div class="session-loading-badge">Session</div>
+      <div class="session-loading-title">会话加载中</div>
+      <div id="session-loading-label" class="session-loading-label">正在整理消息与上下文…</div>
+      <div class="session-loading-bar">
+        <span class="session-loading-bar-fill"></span>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.1/marked.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="js/helpers.js"></script>
+  <script src="js/markdown.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/session.js"></script>
+  <script src="js/chat.js"></script>
+  <script src="js/settings.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

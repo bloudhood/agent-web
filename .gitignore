@@ -1,0 +1,11 @@
+node_modules/
+sessions/
+logs/
+attachments/
+.env
+config/
+.claude/
+.codex/
+*.tmp
+CLAUDE.md
+AGENTS.md
