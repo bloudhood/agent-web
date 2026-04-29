@@ -767,15 +767,20 @@ async function main() {
       try {
         assert(sql(codexFixture.stateDb, `select count(*) from threads where id='${codexFixture.threadId}'`) === '0', 'Deleting Codex session did not remove thread row');
       } catch (dbAssertErr) {
-        // Dump server process log to help diagnose silent sqlite3 failures.
+        console.error('  Server stderr:');
+        console.error(stderr().split('\n').filter((l) => /codex-delete|sqlite|thread/i.test(l)).join('\n') || '  (no codex-delete lines in server stderr)');
         const serverLogPath = path.join(logsDir, 'process.log');
         if (fs.existsSync(serverLogPath)) {
           const logLines = fs.readFileSync(serverLogPath, 'utf8').trim().split('\n');
           const relevantLines = logLines.filter((line) => /codex_delete|sqlite3|thread/i.test(line));
           if (relevantLines.length > 0) {
-            console.error('  Server codex-delete log entries:');
+            console.error('  Server process.log (codex-delete entries):');
             for (const line of relevantLines) console.error(`    ${line}`);
+          } else {
+            console.error('  Server process.log exists but has no codex-delete entries.');
           }
+        } else {
+          console.error(`  Server process.log not found at: ${serverLogPath}`);
         }
         throw dbAssertErr;
       }
