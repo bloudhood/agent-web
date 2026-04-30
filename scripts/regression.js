@@ -498,8 +498,15 @@ async function main() {
     }
     assert(commandPayload.commands.length === COMMAND_MANIFEST.length, 'server command payload should match shared command manifest length');
     const appSource = fs.readFileSync(path.join(REPO_DIR, 'public', 'app.js'), 'utf8');
+    const indexSource = fs.readFileSync(path.join(REPO_DIR, 'public', 'index.html'), 'utf8');
+    const settingsSource = fs.readFileSync(path.join(REPO_DIR, 'public', 'js', 'settings.js'), 'utf8');
+    const styleSource = fs.readFileSync(path.join(REPO_DIR, 'public', 'style.css'), 'utf8');
     const markdownSource = fs.readFileSync(path.join(REPO_DIR, 'public', 'js', 'markdown.js'), 'utf8');
     assert(/renderer\.html\s*=/.test(appSource + markdownSource) && /safeMarkdownUrl/.test(appSource + markdownSource), 'frontend markdown renderer should block raw HTML and unsafe URLs');
+    assert(!/\.login-box\s+button\s*\{[^}]*width:\s*100%/s.test(styleSource), 'login box must not apply full-width button styles to every nested button');
+    assert(/class="[^"]*\blogin-submit-btn\b[^"]*"/.test(indexSource), 'login submit button should have an explicit component class');
+    assert(!/<div class="login-logo">CC<\/div>/.test(indexSource + settingsSource), 'login logo should use Agent-Web branding');
+    assert(/\.login-pw-wrapper\s+\.pw-toggle-btn\s*\{[^}]*width:\s*40px[^}]*height:\s*40px/s.test(styleSource), 'password toggle should have a fixed tap target and not cover the password input');
     for (const domName of ['sidebar', 'newChatBtn', 'importSessionBtn', 'chatMain', 'sessionLoadingOverlay', 'sessionLoadingLabel', 'attachmentTray', 'inputWrapper']) {
       assert(new RegExp(`const\\s+${domName}\\s*=\\s*\\$\\(`).test(appSource), `frontend should bind ${domName} for modular UI code`);
       assert(new RegExp(`\\b${domName}\\b[\\s,]`).test(appSource.slice(appSource.indexOf('CCWeb.dom = {'))), `CCWeb.dom should expose ${domName}`);

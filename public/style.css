@@ -190,31 +190,42 @@ body {
   margin-bottom: 28px;
   font-size: 15px;
 }
-.login-box input {
+.login-box input[type="password"],
+.login-box input[type="text"] {
   width: 100%;
-  padding: 12px 16px;
+  min-height: 48px;
+  padding: 12px 48px 12px 16px;
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
   border-radius: var(--r-md);
   color: var(--text-primary);
   font-size: 15px;
   outline: none;
-  margin-bottom: 12px;
-  transition: border-color var(--dur-base) var(--ease-out);
+  margin: 0;
+  transition: border-color var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out);
 }
-.login-box button {
+.login-box input[type="password"]:focus,
+.login-box input[type="text"]:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(211, 116, 82, 0.14);
+}
+.login-submit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
-  padding: 12px;
+  min-height: 48px;
+  padding: 12px 16px;
   background: var(--accent);
   color: #fff;
   border: none;
   border-radius: var(--r-md);
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
   cursor: pointer;
   transition: background var(--dur-base) var(--ease-out);
 }
-.login-box button:hover { background: var(--accent-hover); }
+.login-submit-btn:hover { background: var(--accent-hover); }
 .remember-label {
   display: flex;
   align-items: center;
@@ -3596,26 +3607,30 @@ body {
 }
 .login-pw-wrapper input {
   margin-bottom: 0;
-  padding-right: 44px;
 }
-.pw-toggle-btn {
+.login-pw-wrapper .pw-toggle-btn {
   position: absolute;
-  right: 12px;
+  right: 8px;
   top: 50%;
   transform: translateY(-50%);
-  background: none;
+  width: 40px;
+  height: 40px;
+  background: transparent;
   border: none;
-  padding: 4px;
+  padding: 0;
   cursor: pointer;
   color: var(--text-muted);
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  width: auto;
+  justify-content: center;
   border-radius: var(--r-sm);
-  transition: color var(--dur-fast) var(--ease-out);
+  transition: color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
 }
-.pw-toggle-btn:hover { color: var(--text-secondary); }
-.pw-toggle-btn svg { display: block; }
+.login-pw-wrapper .pw-toggle-btn:hover {
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+}
+.login-pw-wrapper .pw-toggle-btn svg { display: block; }
 
 /* === Dark Mode for washi-dark === */
 html[data-theme='washi-dark'] .session-list-empty {
