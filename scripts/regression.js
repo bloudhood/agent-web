@@ -215,7 +215,10 @@ function connectWs(port, password) {
     ws.on('message', (buf) => {
       const msg = JSON.parse(String(buf));
       messages.push(msg);
-      if (msg.type === 'auth_result' && msg.success) resolve({ ws, messages, token: msg.token });
+      if (msg.type === 'auth_result' && msg.success) {
+        messages.pop();
+        resolve({ ws, messages, token: msg.token });
+      }
       if (msg.type === 'auth_result' && !msg.success) reject(new Error('Auth failed'));
     });
     ws.on('error', reject);
@@ -284,6 +287,12 @@ function nextMessage(messages, ws, predicate, timeoutMs = 15000) {
       }
     }, 50);
   });
+}
+
+function discardMessages(messages, predicate) {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (predicate(messages[i])) messages.splice(i, 1);
+  }
 }
 
 function createFakeClaudeHistory(homeDir) {
@@ -488,7 +497,7 @@ async function main() {
       CLAUDE_PATH: MOCK_CLAUDE,
       CODEX_PATH: MOCK_CODEX,
       GEMINI_PATH: MOCK_GEMINI,
-    }, async () => {
+    }, async ({ stderr }) => {
     const commandResponse = await fetch(`http://127.0.0.1:${port}/api/commands`);
     assert(commandResponse.ok, '/api/commands should be reachable');
     const commandPayload = await commandResponse.json();
@@ -798,6 +807,7 @@ async function main() {
     assert(importedCodex.totalUsage?.inputTokens === 20, 'Codex import usage parse failed');
 
     const importedSessionId = importedCodex.sessionId;
+    discardMessages(messages, (msg) => msg.type === 'session_list');
     ws.send(JSON.stringify({ type: 'delete_session', sessionId: importedSessionId }));
     await nextMessage(messages, ws, (msg) => msg.type === 'session_list' && !msg.sessions.some((s) => s.id === importedSessionId));
 
