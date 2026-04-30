@@ -295,6 +295,17 @@ function discardMessages(messages, predicate) {
   }
 }
 
+function cssBlock(source, selector) {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\s+/g, '\\s+');
+  const match = source.match(new RegExp(`${escaped}\\s*\\{([\\s\\S]*?)\\}`));
+  return match ? match[1] : '';
+}
+
+function cssThemeBlock(source, themeName) {
+  const match = source.match(new RegExp(`html\\[data-theme=['"]${themeName}['"]\\]\\s*\\{([\\s\\S]*?)\\}`));
+  return match ? match[1] : '';
+}
+
 function createFakeClaudeHistory(homeDir) {
   const projectDir = path.join(homeDir, '.claude', 'projects', 'tmp-project');
   mkdirp(projectDir);
@@ -516,6 +527,16 @@ async function main() {
     assert(/class="[^"]*\blogin-submit-btn\b[^"]*"/.test(indexSource), 'login submit button should have an explicit component class');
     assert((indexSource + settingsSource).match(/<div class="login-logo">A<\/div>/g)?.length === 2, 'login logo should use A branding');
     assert(/\.login-pw-wrapper\s+\.pw-toggle-btn\s*\{[^}]*width:\s*40px[^}]*height:\s*40px/s.test(styleSource), 'password toggle should have a fixed tap target and not cover the password input');
+    const darkThemeBlock = cssThemeBlock(styleSource, 'washi-dark');
+    for (const token of ['--surface-page', '--surface-panel', '--surface-panel-strong', '--surface-muted', '--line-soft', '--line-strong', '--shadow-panel', '--shadow-float', '--control-bg', '--control-bg-hover', '--field-bg', '--field-border', '--glass-bg', '--glass-border', '--inline-code-bg', '--inline-code-text', '--warning-bg', '--warning-border', '--warning-text']) {
+      assert(new RegExp(`${token}\\s*:`).test(darkThemeBlock), `dark theme should define ${token}`);
+    }
+    for (const selector of ['.chat-header', '.sidebar', '.input-area', '.input-wrapper', '.settings-panel,\n.modal-panel,\n.login-box', '.agent-select,\n.mode-select']) {
+      const block = cssBlock(styleSource, selector);
+      assert(/var\(--/.test(block), `${selector} should use theme tokens instead of fixed light colors`);
+      assert(!/(?:background(?:-color)?|color)\s*:\s*(?:#fff|#141413|white|rgba\(\s*25[05]\s*,\s*25[0-5]\s*,\s*24[0-9])/i.test(block), `${selector} should not hard-code light theme colors`);
+    }
+    assert(/\.settings-nav-card,\s*\.theme-card,\s*\.agent-context-card,\s*\.path-picker,\s*\.attachment-chip\s*\{[^}]*color:\s*var\(--text-primary\)/s.test(styleSource), 'card-like controls should set theme-aware text color');
     for (const domName of ['sidebar', 'newChatBtn', 'importSessionBtn', 'chatMain', 'sessionLoadingOverlay', 'sessionLoadingLabel', 'attachmentTray', 'inputWrapper']) {
       assert(new RegExp(`const\\s+${domName}\\s*=\\s*\\$\\(`).test(appSource), `frontend should bind ${domName} for modular UI code`);
       assert(new RegExp(`\\b${domName}\\b[\\s,]`).test(appSource.slice(appSource.indexOf('CCWeb.dom = {'))), `CCWeb.dom should expose ${domName}`);
