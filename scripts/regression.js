@@ -514,7 +514,7 @@ async function main() {
     assert(/renderer\.html\s*=/.test(appSource + markdownSource) && /safeMarkdownUrl/.test(appSource + markdownSource), 'frontend markdown renderer should block raw HTML and unsafe URLs');
     assert(!/\.login-box\s+button\s*\{[^}]*width:\s*100%/s.test(styleSource), 'login box must not apply full-width button styles to every nested button');
     assert(/class="[^"]*\blogin-submit-btn\b[^"]*"/.test(indexSource), 'login submit button should have an explicit component class');
-    assert(!/<div class="login-logo">CC<\/div>/.test(indexSource + settingsSource), 'login logo should use Agent-Web branding');
+    assert((indexSource + settingsSource).match(/<div class="login-logo">A<\/div>/g)?.length === 2, 'login logo should use A branding');
     assert(/\.login-pw-wrapper\s+\.pw-toggle-btn\s*\{[^}]*width:\s*40px[^}]*height:\s*40px/s.test(styleSource), 'password toggle should have a fixed tap target and not cover the password input');
     for (const domName of ['sidebar', 'newChatBtn', 'importSessionBtn', 'chatMain', 'sessionLoadingOverlay', 'sessionLoadingLabel', 'attachmentTray', 'inputWrapper']) {
       assert(new RegExp(`const\\s+${domName}\\s*=\\s*\\$\\(`).test(appSource), `frontend should bind ${domName} for modular UI code`);

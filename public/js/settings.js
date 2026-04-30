@@ -170,7 +170,7 @@ window.CCWeb = window.CCWeb || {};
     panel.className = 'force-change-panel';
 
     panel.innerHTML = `
-      <div class="login-logo">AW</div>
+      <div class="login-logo">A</div>
       <h2>修改初始密码</h2>
       <p>首次登录需要设置新密码</p>
       <div class="force-change-form">
