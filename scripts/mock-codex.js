@@ -5,6 +5,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 function writeLine(obj) {
   fs.writeSync(1, `${JSON.stringify(obj)}\n`);
 }
@@ -20,6 +22,44 @@ function readStdin() {
 
 (async function main() {
   const args = process.argv.slice(2);
+  if (args.join(' ') === '--help') {
+    process.stdout.write(`Codex CLI
+
+Commands:
+  exec         Run Codex non-interactively
+  review       Run a code review non-interactively
+  login        Manage login
+  logout       Remove stored authentication credentials
+  mcp          Manage external MCP servers for Codex
+  plugin       Manage Codex plugins
+  resume       Resume a previous interactive session
+  features     Inspect feature flags
+
+Options:
+  -h, --help   Print help
+`);
+    return;
+  }
+  if (args.join(' ') === 'mcp --help') {
+    process.stdout.write(`Manage external MCP servers for Codex
+
+Commands:
+  list
+  get
+  add
+  remove
+
+Options:
+  -h, --help   Print help
+`);
+    return;
+  }
+  if (args[0] !== 'exec') {
+    process.stdout.write(`Codex native start ${args.join(' ')}\n`);
+    await sleep(120);
+    process.stdout.write(`Codex native end ${args.join(' ')}\n`);
+    return;
+  }
   // agent-web can place `resume` after other `codex exec` options (e.g. --json, -s).
   const isResume = args[0] === 'exec' && args.includes('resume');
   const threadId = (() => {
@@ -114,4 +154,8 @@ function readStdin() {
     type: 'turn.completed',
     usage: { input_tokens: 10, cached_input_tokens: 2, output_tokens: 5 },
   });
+
+  if (input.includes('slow logical completion first')) {
+    await sleep(2500);
+  }
 })();

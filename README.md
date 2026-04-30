@@ -7,13 +7,13 @@
 ![Node.js](https://img.shields.io/badge/Node.js-18+-339933?logo=node.js&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-blue)
 
-[English README](./README.en.md) | [更新日志](./CHANGELOG.md) | [安全说明](./SECURITY.md)
+[English README](./README.en.md) | [架构说明](./docs/ARCHITECTURE.md) | [更新日志](./CHANGELOG.md) | [安全说明](./SECURITY.md)
 
 ## 特性
 
-- **多 Agent 会话**：支持 Claude、Codex、Gemini CLI、Hermes，按 Agent 隔离会话列表和运行状态。
+- **多 Agent 会话**：支持 Claude、Codex、Gemini CLI、Hermes，侧边栏按最近时间统一展示并标识来源 Agent。
 - **移动端控制**：针对 iOS/Chrome 的聊天、侧栏、底部输入和原生选择体验优化。
-- **原生工作流保留**：支持 `/model`、`/mode`、`/permissions`、`/status`、`/usage`、`/resume`、`/doctor` 等 Web 命令；保留 `/login`、`/mcp`、`/plugin` 等原生 CLI 管理命令名，并给出本机终端执行说明。
+- **原生工作流对齐**：支持 `/model`、`/mode`、`/permissions`、`/status`、`/usage`、`/resume`、`/doctor` 等 Web 命令；`/` 补全从当前本机 CLI help 解析命令、子命令和选项，基础读命令可实时输出。
 - **本地历史导入**：可导入 Claude `~/.claude/projects/` 和 Codex `~/.codex/sessions/` 历史。
 - **进程恢复**：Claude/Codex/Gemini 通过本机 CLI 子进程运行，浏览器断开后任务可继续；服务重启后尽量恢复运行态。
 - **Hermes Gateway**：通过 WSL/本机 Hermes API Server 对接 Hermes 对话，并展示工具调用。
@@ -52,14 +52,15 @@ node server.js
 启动后访问 `http://localhost:8002`。首次未配置密码时，控制台会打印临时密码并要求登录后修改。
 
 **局域网访问**（手机和电脑在同一 WiFi）：
-- 出于安全考虑，Agent-Web 默认只监听 `127.0.0.1`，推荐通过 Nginx 等反向代理、Tailscale 或 Cloudflare Tunnel 暴露访问入口，并配合防火墙限制来源。
-- 确需在局域网内使用，可将服务监听地址从 `127.0.0.1` 改为 `0.0.0.0`（例如增加 `HOST=0.0.0.0` 配置并让启动代码读取该变量），再通过 `http://电脑局域网IP:8002` 访问。
+- Agent-Web 默认监听 `0.0.0.0:8002`，便于从手机访问 `http://电脑局域网IP:8002`。
+- 仅本机使用时建议设置 `HOST=127.0.0.1`。远程访问推荐通过 Nginx、Tailscale 或 Cloudflare Tunnel，并配合防火墙限制来源。
 
 ## 配置
 
 | 变量 | 必填 | 默认值 | 说明 |
 |---|:---:|---|---|
 | `CC_WEB_PASSWORD` | 否 | 自动生成 | Web 登录密码，首次启动会迁移到 `config/auth.json` |
+| `HOST` / `CC_WEB_HOST` | 否 | `0.0.0.0` | 服务监听地址；仅本机使用可设为 `127.0.0.1` |
 | `PORT` | 否 | `8002` | 服务端口 |
 | `CLAUDE_PATH` | 否 | `claude` | Claude Code CLI 路径 |
 | `CODEX_PATH` | 否 | `codex` | Codex CLI 路径 |
@@ -90,7 +91,13 @@ Web 直接处理的命令包括：
 - `/ssh`
 - `/help`
 
-原生 CLI 管理命令会被识别，但不会在网页中直接执行会改全局配置或需要 TTY 的动作。前端命令菜单来自后端 `shared/commands.json`，避免前后端指令漂移。
+原生 CLI 管理命令会被识别。需要 TTY 或会改全局认证/配置的动作只给终端说明；基础读命令会通过本机 CLI 子进程实时输出。`/` 菜单的顶层、子命令和选项候选来自当前 CLI 的 `--help` 输出，Web 命令清单来自后端 `shared/commands.json`。
+
+## 运行诊断
+
+- `GET /api/health`：返回版本、PID、Node 版本、实际监听地址、运行中任务数、命令清单数量和能力开关。
+- `GET /api/commands`：返回 Web/原生命令清单。
+- `GET /api/slash-completions?agent=claude&input=/mcp%20`：返回当前 Agent 的原生 slash 候选。
 
 ## 项目结构
 

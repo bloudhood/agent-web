@@ -2,6 +2,8 @@
 
 const crypto = require('crypto');
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 function readStdin() {
   return new Promise((resolve) => {
     let data = '';
@@ -13,6 +15,41 @@ function readStdin() {
 
 (async function main() {
   const args = process.argv.slice(2);
+  if (args.join(' ') === '--help') {
+    process.stdout.write(`Usage: gemini [options] [command]
+
+Commands:
+  gemini mcp                   Manage MCP servers
+  gemini extensions <command>  Manage Gemini CLI extensions.  [aliases: extension]
+  gemini skills <command>      Manage agent skills.  [aliases: skill]
+  gemini hooks <command>       Manage Gemini CLI hooks.  [aliases: hook]
+  gemini gemma                 Manage local Gemma model routing
+
+Options:
+  -h, --help                   Show help
+`);
+    return;
+  }
+  if (args.join(' ') === 'extensions --help') {
+    process.stdout.write(`gemini extensions <command>
+
+Commands:
+  gemini extensions install <source>  Installs an extension.
+  gemini extensions uninstall [names..]  Uninstalls extensions.
+  gemini extensions list  Lists installed extensions.
+  gemini extensions update [<name>]  Updates extensions.
+
+Options:
+  -h, --help   Show help
+`);
+    return;
+  }
+  if (!args.includes('--prompt')) {
+    process.stdout.write(`Gemini native start ${args.join(' ')}\n`);
+    await sleep(120);
+    process.stdout.write(`Gemini native end ${args.join(' ')}\n`);
+    return;
+  }
   const resumeIndex = args.indexOf('--resume');
   const modelIndex = args.indexOf('--model');
   const sessionId = resumeIndex >= 0 && args[resumeIndex + 1]

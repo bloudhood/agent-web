@@ -87,7 +87,6 @@ window.CCWeb = window.CCWeb || {};
       streamEl.removeAttribute('id');
     }
 
-    if (sessionId) state.currentSessionId = sessionId;
     state.pendingText = '';
     state.activeToolCalls.clear();
     state.toolGroupCount = 0;

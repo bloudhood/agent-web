@@ -157,7 +157,11 @@ window.CCWeb = window.CCWeb || {};
 
   function getVisibleSessions() {
     const state = CCWeb.state;
-    return state.sessions.filter((s) => CCWeb.helpers.normalizeAgent(s.agent) === state.currentAgent);
+    return state.sessions.slice().sort((a, b) => {
+      const bt = new Date(b.updated || 0).getTime() || 0;
+      const at = new Date(a.updated || 0).getTime() || 0;
+      return bt - at;
+    });
   }
 
   function setCurrentAgent(agent) {
@@ -247,10 +251,6 @@ window.CCWeb = window.CCWeb || {};
       return;
     }
 
-    if (state.currentSessionId && (!currentMeta || CCWeb.helpers.normalizeAgent(currentMeta.agent) !== targetAgent)) {
-      CCWeb.send({ type: 'detach_view' });
-    }
-
     resetChatView(targetAgent);
 
     if (!loadLast) return;
@@ -337,9 +337,6 @@ window.CCWeb = window.CCWeb || {};
     const snapshot = buildCachedSessionSnapshot(sessionId);
     if (!snapshot) return false;
     const state = CCWeb.state;
-    if (state.currentSessionId && state.currentSessionId !== sessionId) {
-      CCWeb.send({ type: 'detach_view' });
-    }
     clearSessionLoading();
     touchSessionCache(sessionId);
     applySessionSnapshot(snapshot, { immediate: true, suppressUnreadToast: true });
@@ -395,19 +392,24 @@ window.CCWeb = window.CCWeb || {};
     if (visibleSessions.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'session-list-empty';
-      empty.textContent = `暂无 ${CCWeb.helpers.AGENT_LABELS?.[state.currentAgent] || state.currentAgent} 会话，点击「新会话」开始。`;
+      empty.textContent = '暂无最近会话，点击「新会话」开始。';
       dom.sessionList.appendChild(empty);
       return;
     }
 
     for (const s of visibleSessions) {
+      const sessionAgent = CCWeb.helpers.normalizeAgent(s.agent);
+      const agentLabel = CCWeb.helpers.AGENT_LABELS?.[sessionAgent] || sessionAgent;
       const item = document.createElement('div');
       item.className = `session-item${s.id === state.currentSessionId ? ' active' : ''}`;
       item.dataset.id = s.id;
       item.innerHTML = `
         <div class="session-item-main">
           <span class="session-item-title">${CCWeb.helpers.escapeHtml(s.title || 'Untitled')}</span>
-          ${s.isRunning ? '<span class="session-item-status">运行中</span>' : ''}
+          <span class="session-item-meta">
+            <span class="session-agent-badge agent-${sessionAgent}">${CCWeb.helpers.escapeHtml(agentLabel)}</span>
+            ${s.isRunning ? '<span class="session-item-status">运行中</span>' : ''}
+          </span>
         </div>
         ${s.hasUnread ? '<span class="session-unread-dot"></span>' : ''}
         <span class="session-item-time">${CCWeb.helpers.timeAgo(s.updated)}</span>
@@ -422,8 +424,8 @@ window.CCWeb = window.CCWeb || {};
         if (target.classList.contains('delete')) {
           e.stopPropagation();
           const doDelete = () => {
-            if (CCWeb.helpers.getLastSessionForAgent(state.currentAgent) === s.id) {
-              localStorage.removeItem(CCWeb.helpers.getAgentSessionStorageKey(state.currentAgent));
+            if (CCWeb.helpers.getLastSessionForAgent(sessionAgent) === s.id) {
+              localStorage.removeItem(CCWeb.helpers.getAgentSessionStorageKey(sessionAgent));
             }
             invalidateSessionCache(s.id);
             CCWeb.send({ type: 'delete_session', sessionId: s.id });

@@ -37,46 +37,48 @@ window.CCWeb = window.CCWeb || {};
   ];
 
   const DEFAULT_SLASH_COMMANDS = [
-    { cmd: '/clear', desc: '清除当前会话' },
-    { cmd: '/model', desc: '查看/切换模型' },
-    { cmd: '/mode', desc: '查看/切换权限模式' },
-    { cmd: '/permissions', desc: '查看/切换权限模式' },
-    { cmd: '/status', desc: '查看当前会话状态' },
-    { cmd: '/cost', desc: '查看会话费用' },
-    { cmd: '/usage', desc: '查看 Token/费用统计' },
-    { cmd: '/compact', desc: '压缩上下文' },
-    { cmd: '/init', desc: '生成/更新 Agent 指南文件' },
-    { cmd: '/resume', desc: '查看恢复会话方式' },
-    { cmd: '/doctor', desc: '检查本机 CLI 状态' },
-    { cmd: '/login', desc: '原生 CLI 登录说明' },
-    { cmd: '/logout', desc: '原生 CLI 登录说明' },
-    { cmd: '/auth', desc: 'Claude 原生认证说明' },
-    { cmd: '/mcp', desc: '原生 MCP 配置说明' },
-    { cmd: '/plugin', desc: '原生插件配置说明' },
-    { cmd: '/plugins', desc: '原生插件配置说明' },
-    { cmd: '/agents', desc: 'Claude 原生 agents 说明' },
-    { cmd: '/extensions', desc: 'Gemini 原生 extensions 说明' },
-    { cmd: '/skills', desc: 'Gemini 原生 skills 说明' },
-    { cmd: '/hooks', desc: 'Gemini 原生 hooks 说明' },
-    { cmd: '/memory', desc: '原生记忆配置说明' },
-    { cmd: '/config', desc: '原生配置说明' },
-    { cmd: '/update', desc: '原生更新说明' },
-    { cmd: '/upgrade', desc: '原生更新说明' },
-    { cmd: '/release-notes', desc: '原生版本说明' },
-    { cmd: '/review', desc: 'Codex 原生 review 说明' },
-    { cmd: '/apply', desc: 'Codex 原生 apply 说明' },
-    { cmd: '/fork', desc: 'Codex 原生 fork 说明' },
-    { cmd: '/features', desc: 'Codex 原生 features 说明' },
-    { cmd: '/ide', desc: 'Claude IDE 集成说明' },
-    { cmd: '/terminal-setup', desc: '终端集成说明' },
-    { cmd: '/vim', desc: '终端编辑模式说明' },
-    { cmd: '/export', desc: '原生导出说明' },
-    { cmd: '/bug', desc: '原生反馈说明' },
-    { cmd: '/github', desc: 'GitHub 操作（读取开发者配置后执行）' },
-    { cmd: '/ssh', desc: 'SSH 远程操作（读取开发者配置后执行）' },
-    { cmd: '/help', desc: '显示帮助' },
+    { cmd: '/clear', desc: '清除当前会话', kind: 'web' },
+    { cmd: '/model', desc: '查看/切换模型', kind: 'web' },
+    { cmd: '/mode', desc: '查看/切换权限模式', kind: 'web' },
+    { cmd: '/permissions', desc: '查看/切换权限模式', kind: 'web' },
+    { cmd: '/status', desc: '查看当前会话状态', kind: 'web' },
+    { cmd: '/cost', desc: '查看会话费用', kind: 'web' },
+    { cmd: '/usage', desc: '查看 Token/费用统计', kind: 'web' },
+    { cmd: '/compact', desc: '压缩上下文', kind: 'web' },
+    { cmd: '/init', desc: '生成/更新 Agent 指南文件', kind: 'web' },
+    { cmd: '/resume', desc: '查看恢复会话方式', kind: 'web' },
+    { cmd: '/doctor', desc: '检查本机 CLI 状态', kind: 'web' },
+    { cmd: '/login', desc: '原生 CLI 登录终端说明', kind: 'native' },
+    { cmd: '/logout', desc: '原生 CLI 登出终端说明', kind: 'native' },
+    { cmd: '/auth', desc: '原生 CLI 认证终端说明', kind: 'native' },
+    { cmd: '/mcp', desc: '原生 CLI 实时 MCP 输出', kind: 'native' },
+    { cmd: '/plugin', desc: '原生 CLI 实时插件输出', kind: 'native' },
+    { cmd: '/plugins', desc: '原生 CLI 实时插件输出', kind: 'native' },
+    { cmd: '/agents', desc: 'Claude CLI 实时 agents 输出', kind: 'native' },
+    { cmd: '/extensions', desc: 'Gemini CLI 实时 extensions 输出', kind: 'native' },
+    { cmd: '/skills', desc: 'Gemini CLI 实时 skills 输出', kind: 'native' },
+    { cmd: '/hooks', desc: 'Gemini CLI 实时 hooks 输出', kind: 'native' },
+    { cmd: '/memory', desc: '原生 CLI 实时 memory 输出', kind: 'native' },
+    { cmd: '/config', desc: '原生 CLI 实时 config 输出', kind: 'native' },
+    { cmd: '/update', desc: '原生 CLI 更新终端说明', kind: 'native' },
+    { cmd: '/upgrade', desc: '原生 CLI 更新终端说明', kind: 'native' },
+    { cmd: '/release-notes', desc: '原生 CLI 实时版本输出', kind: 'native' },
+    { cmd: '/review', desc: 'Codex CLI 实时 review 输出', kind: 'native' },
+    { cmd: '/apply', desc: 'Codex CLI apply 终端说明', kind: 'native' },
+    { cmd: '/fork', desc: 'Codex CLI fork 终端说明', kind: 'native' },
+    { cmd: '/features', desc: 'Codex CLI 实时 features 输出', kind: 'native' },
+    { cmd: '/ide', desc: 'Claude CLI 实时 IDE 输出', kind: 'native' },
+    { cmd: '/terminal-setup', desc: 'Claude CLI 实时终端集成输出', kind: 'native' },
+    { cmd: '/vim', desc: '原生 CLI 实时 vim 输出', kind: 'native' },
+    { cmd: '/export', desc: '原生 CLI 实时导出输出', kind: 'native' },
+    { cmd: '/bug', desc: '原生 CLI 反馈终端说明', kind: 'native' },
+    { cmd: '/github', desc: 'GitHub 操作（读取开发者配置后执行）', kind: 'web' },
+    { cmd: '/ssh', desc: 'SSH 远程操作（读取开发者配置后执行）', kind: 'web' },
+    { cmd: '/help', desc: '显示帮助', kind: 'web' },
   ];
   let slashCommands = DEFAULT_SLASH_COMMANDS.slice();
+  let slashCompletionSeq = 0;
+  let composerEventsBound = false;
 
   async function loadCommandManifest() {
     try {
@@ -88,6 +90,7 @@ window.CCWeb = window.CCWeb || {};
         .map((command) => ({
           cmd: String(command?.cmd || '').trim(),
           desc: String(command?.desc || '').trim(),
+          kind: String(command?.kind || 'web'),
           agents: Array.isArray(command?.agents) ? command.agents : [],
         }))
         .filter((command) => command.cmd.startsWith('/') && command.desc);
@@ -373,22 +376,51 @@ window.CCWeb = window.CCWeb || {};
   }
 
   // --- Slash Command Menu ---
-  function showCmdMenu(filter) {
+  function localSlashCompletions(filter) {
+    const state = CCWeb.state;
+    const query = String(filter || '/');
+    const lowerQuery = query.toLowerCase();
+    return slashCommands
+      .filter(c => {
+        if (Array.isArray(c.agents) && !c.agents.includes(state.currentAgent)) return false;
+        return c.cmd.toLowerCase().startsWith(lowerQuery) || c.desc.toLowerCase().includes(lowerQuery.slice(1));
+      })
+      .map(c => ({
+        cmd: c.cmd,
+        completion: `${c.cmd} `,
+        desc: c.desc,
+        kind: c.kind || 'web',
+        source: c.kind === 'native' ? `${CCWeb.AGENT_LABELS[state.currentAgent] || state.currentAgent} CLI` : 'Agent-Web',
+      }));
+  }
+
+  function sortSlashCompletions(items, filter) {
+    const query = String(filter || '/');
+    return items.slice().sort((a, b) => {
+      const exact = Number(b.cmd === query) - Number(a.cmd === query);
+      if (exact) return exact;
+      const nativeFirst = Number(b.kind === 'native') - Number(a.kind === 'native');
+      if (nativeFirst) return nativeFirst;
+      return String(a.cmd || '').localeCompare(String(b.cmd || ''));
+    });
+  }
+
+  function renderCmdMenu(items, filter) {
     const dom = CCWeb.dom;
     const state = CCWeb.state;
-    const filtered = slashCommands.filter(c =>
-      c.cmd.startsWith(filter) || c.desc.includes(filter.slice(1))
-    );
-    filtered.sort((a, b) => (b.cmd === filter ? 1 : 0) - (a.cmd === filter ? 1 : 0));
+    const filtered = sortSlashCompletions(items, filter);
     if (filtered.length === 0) {
       hideCmdMenu();
       return;
     }
     state.cmdMenuIndex = 0;
     dom.cmdMenu.innerHTML = filtered.map((c, i) =>
-      `<div class="cmd-item${i === 0 ? ' active' : ''}" data-cmd="${CCWeb.helpers.escapeHtml(c.cmd)}">
-        <span class="cmd-item-cmd">${CCWeb.helpers.escapeHtml(c.cmd)}</span>
-        <span class="cmd-item-desc">${CCWeb.helpers.escapeHtml(c.desc)}</span>
+      `<div class="cmd-item${i === 0 ? ' active' : ''}" data-cmd="${CCWeb.helpers.escapeHtml(c.cmd)}" data-completion="${CCWeb.helpers.escapeHtml(c.completion || `${c.cmd} `)}">
+        <span class="cmd-item-main">
+          <span class="cmd-item-cmd">${CCWeb.helpers.escapeHtml(c.cmd)}</span>
+          <span class="cmd-item-kind ${c.kind === 'native' ? 'native' : 'web'}">${CCWeb.helpers.escapeHtml(c.source || (c.kind === 'native' ? 'CLI' : 'Web'))}</span>
+        </span>
+        <span class="cmd-item-desc">${CCWeb.helpers.escapeHtml(c.desc || '')}</span>
       </div>`
     ).join('');
     dom.cmdMenu.hidden = false;
@@ -415,6 +447,31 @@ window.CCWeb = window.CCWeb || {};
     });
   }
 
+  async function showCmdMenu(filter) {
+    const dom = CCWeb.dom;
+    const state = CCWeb.state;
+    if (!dom.cmdMenu || !String(filter || '').startsWith('/')) return;
+    const seq = ++slashCompletionSeq;
+    renderCmdMenu(localSlashCompletions(filter), filter);
+    try {
+      const params = new URLSearchParams({ agent: state.currentAgent, input: filter });
+      const response = await fetch(`/api/slash-completions?${params.toString()}`, { cache: 'no-store' });
+      if (!response.ok || seq !== slashCompletionSeq) return;
+      const payload = await response.json();
+      const commands = Array.isArray(payload?.commands) ? payload.commands : [];
+      const normalized = commands
+        .map((command) => ({
+          cmd: String(command?.cmd || '').trim(),
+          completion: String(command?.completion || command?.cmd || ''),
+          desc: String(command?.desc || '').trim(),
+          kind: String(command?.kind || 'web'),
+          source: String(command?.source || '').trim(),
+        }))
+        .filter((command) => command.cmd);
+      if (normalized.length > 0) renderCmdMenu(normalized, filter);
+    } catch {}
+  }
+
   function hideCmdMenu() {
     const dom = CCWeb.dom;
     const state = CCWeb.state;
@@ -430,6 +487,7 @@ window.CCWeb = window.CCWeb || {};
     items[state.cmdMenuIndex]?.classList.remove('active');
     state.cmdMenuIndex = (state.cmdMenuIndex + direction + items.length) % items.length;
     items[state.cmdMenuIndex]?.classList.add('active');
+    items[state.cmdMenuIndex]?.scrollIntoView({ block: 'nearest' });
   }
 
   function selectCmdMenuItem() {
@@ -438,6 +496,7 @@ window.CCWeb = window.CCWeb || {};
     const items = dom.cmdMenu.querySelectorAll('.cmd-item');
     if (state.cmdMenuIndex >= 0 && items[state.cmdMenuIndex]) {
       const cmd = items[state.cmdMenuIndex].dataset.cmd;
+      const completion = items[state.cmdMenuIndex].dataset.completion || `${cmd} `;
       if (cmd === '/model') {
         hideCmdMenu();
         dom.msgInput.value = '';
@@ -450,7 +509,7 @@ window.CCWeb = window.CCWeb || {};
         showModePicker();
         return;
       }
-      dom.msgInput.value = cmd + ' ';
+      dom.msgInput.value = completion;
       hideCmdMenu();
       dom.msgInput.focus();
     }
@@ -927,6 +986,65 @@ window.CCWeb = window.CCWeb || {};
     }
   }
 
+  function bindComposerEvents() {
+    if (composerEventsBound) return;
+    const dom = CCWeb.dom;
+    if (!dom?.msgInput || !dom?.cmdMenu) return;
+    composerEventsBound = true;
+
+    dom.msgInput.addEventListener('input', () => {
+      autoResize();
+      const val = dom.msgInput.value;
+      if (val.startsWith('/') && !val.includes('\n')) {
+        showCmdMenu(val);
+      } else {
+        hideCmdMenu();
+      }
+    });
+
+    dom.msgInput.addEventListener('keydown', (e) => {
+      if (!dom.cmdMenu.hidden) {
+        if (e.key === 'ArrowDown') { e.preventDefault(); navigateCmdMenu(1); return; }
+        if (e.key === 'ArrowUp') { e.preventDefault(); navigateCmdMenu(-1); return; }
+        if (e.key === 'Tab') { e.preventDefault(); selectCmdMenuItem(); return; }
+        if (e.key === 'Escape') { hideCmdMenu(); return; }
+      }
+      if (e.key === 'Tab' && dom.msgInput.value.startsWith('/')) {
+        e.preventDefault();
+        showCmdMenu(dom.msgInput.value);
+        return;
+      }
+      if (e.key === 'Enter' && !e.shiftKey) {
+        if (isMobileInputMode()) {
+          if (!dom.cmdMenu.hidden) {
+            e.preventDefault();
+            selectCmdMenuItem();
+          }
+          return;
+        }
+
+        e.preventDefault();
+        if (!dom.cmdMenu.hidden) {
+          selectCmdMenuItem();
+        } else {
+          sendMessage();
+        }
+      }
+    });
+
+    dom.msgInput.addEventListener('paste', (e) => {
+      const items = Array.from(e.clipboardData?.items || []);
+      const files = items
+        .filter((item) => item.kind === 'file' && /^image\//.test(item.type || ''))
+        .map((item) => item.getAsFile())
+        .filter(Boolean);
+      if (files.length > 0) {
+        e.preventDefault();
+        handleSelectedImageFiles(files);
+      }
+    });
+  }
+
   // --- Init function for UI module ---
   function init() {
     const dom = CCWeb.dom;
@@ -1084,53 +1202,7 @@ window.CCWeb = window.CCWeb || {};
       }
     });
 
-    // Input events
-    dom.msgInput.addEventListener('input', () => {
-      autoResize();
-      const val = dom.msgInput.value;
-      if (val.startsWith('/') && !val.includes('\n')) {
-        showCmdMenu(val);
-      } else {
-        hideCmdMenu();
-      }
-    });
-
-    dom.msgInput.addEventListener('keydown', (e) => {
-      if (!dom.cmdMenu.hidden) {
-        if (e.key === 'ArrowDown') { e.preventDefault(); navigateCmdMenu(1); return; }
-        if (e.key === 'ArrowUp') { e.preventDefault(); navigateCmdMenu(-1); return; }
-        if (e.key === 'Tab') { e.preventDefault(); selectCmdMenuItem(); return; }
-        if (e.key === 'Escape') { hideCmdMenu(); return; }
-      }
-      if (e.key === 'Enter' && !e.shiftKey) {
-        if (isMobileInputMode()) {
-          if (!dom.cmdMenu.hidden) {
-            e.preventDefault();
-            selectCmdMenuItem();
-          }
-          return;
-        }
-
-        e.preventDefault();
-        if (!dom.cmdMenu.hidden) {
-          selectCmdMenuItem();
-        } else {
-          sendMessage();
-        }
-      }
-    });
-
-    dom.msgInput.addEventListener('paste', (e) => {
-      const items = Array.from(e.clipboardData?.items || []);
-      const files = items
-        .filter((item) => item.kind === 'file' && /^image\//.test(item.type || ''))
-        .map((item) => item.getAsFile())
-        .filter(Boolean);
-      if (files.length > 0) {
-        e.preventDefault();
-        handleSelectedImageFiles(files);
-      }
-    });
+    bindComposerEvents();
 
     // Close cmd menu on outside click
     document.addEventListener('click', (e) => {
@@ -1248,6 +1320,7 @@ window.CCWeb = window.CCWeb || {};
     renderPendingAttachments,
     handleSelectedImageFiles,
     syncAttachmentActions,
+    bindComposerEvents,
     MODEL_OPTIONS,
     MODE_PICKER_OPTIONS,
     THEME_OPTIONS,

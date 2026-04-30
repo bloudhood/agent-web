@@ -16,9 +16,10 @@
     "node": ">=18"
   },
   "scripts": {
-    "check": "node --check server.js && node --check public/app.js && node --check scripts/regression.js",
+    "check": "node --check server.js && node --check public/app.js && node --check scripts/regression.js && node --check scripts/audit-project.js",
+    "audit:repo": "node scripts/audit-project.js",
     "start": "node server.js",
-    "test": "npm run check && npm run regression",
+    "test": "npm run check && npm run audit:repo && npm run regression",
     "regression": "node scripts/regression.js"
   },
   "dependencies": {

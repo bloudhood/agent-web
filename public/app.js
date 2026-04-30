@@ -270,18 +270,30 @@
         break;
 
       case 'text_delta':
+        if (msg.sessionId && state.currentSessionId && msg.sessionId !== state.currentSessionId) {
+          CCWeb.session.updateCachedSession(msg.sessionId, (snapshot) => { snapshot.isRunning = true; });
+          break;
+        }
         if (!state.isGenerating) CCWeb.chat.startGenerating();
         state.pendingText += msg.text;
         CCWeb.chat.scheduleRender();
         break;
 
       case 'tool_start':
+        if (msg.sessionId && state.currentSessionId && msg.sessionId !== state.currentSessionId) {
+          CCWeb.session.updateCachedSession(msg.sessionId, (snapshot) => { snapshot.isRunning = true; });
+          break;
+        }
         if (!state.isGenerating) CCWeb.chat.startGenerating();
         state.activeToolCalls.set(msg.toolUseId, { name: msg.name, input: msg.input, kind: msg.kind || null, meta: msg.meta || null, done: false });
         CCWeb.chat.appendToolCall(msg.toolUseId, msg.name, msg.input, false, msg.kind || null, msg.meta || null);
         break;
 
       case 'tool_end':
+        if (msg.sessionId && state.currentSessionId && msg.sessionId !== state.currentSessionId) {
+          CCWeb.session.updateCachedSession(msg.sessionId, (snapshot) => { snapshot.isRunning = true; });
+          break;
+        }
         if (state.activeToolCalls.has(msg.toolUseId)) {
           state.activeToolCalls.get(msg.toolUseId).done = true;
           if (msg.kind) state.activeToolCalls.get(msg.toolUseId).kind = msg.kind;
@@ -292,24 +304,34 @@
         break;
 
       case 'cost':
-        costDisplay.textContent = `$${msg.costUsd.toFixed(4)}`;
-        if (state.currentSessionId) {
-          CCWeb.session.updateCachedSession(state.currentSessionId, (snapshot) => { snapshot.totalCost = msg.costUsd; });
+        if (!msg.sessionId || msg.sessionId === state.currentSessionId) {
+          costDisplay.textContent = `$${msg.costUsd.toFixed(4)}`;
+        }
+        if (msg.sessionId || state.currentSessionId) {
+          CCWeb.session.updateCachedSession(msg.sessionId || state.currentSessionId, (snapshot) => { snapshot.totalCost = msg.costUsd; });
         }
         break;
 
       case 'usage':
         if (msg.totalUsage) {
           const cacheText = msg.totalUsage.cachedInputTokens ? ` · cache ${msg.totalUsage.cachedInputTokens}` : '';
-          costDisplay.textContent = `in ${msg.totalUsage.inputTokens} · out ${msg.totalUsage.outputTokens}${cacheText}`;
-          if (state.currentSessionId) {
-            CCWeb.session.updateCachedSession(state.currentSessionId, (snapshot) => { snapshot.totalUsage = CCWeb.helpers.deepClone(msg.totalUsage); });
+          if (!msg.sessionId || msg.sessionId === state.currentSessionId) {
+            costDisplay.textContent = `in ${msg.totalUsage.inputTokens} · out ${msg.totalUsage.outputTokens}${cacheText}`;
+          }
+          if (msg.sessionId || state.currentSessionId) {
+            CCWeb.session.updateCachedSession(msg.sessionId || state.currentSessionId, (snapshot) => { snapshot.totalUsage = CCWeb.helpers.deepClone(msg.totalUsage); });
           }
         }
         break;
 
+      case 'turn_done':
       case 'done':
-        CCWeb.chat.finishGenerating(msg.sessionId);
+        if (!msg.sessionId || msg.sessionId === state.currentSessionId) {
+          CCWeb.chat.finishGenerating(msg.sessionId);
+        } else {
+          CCWeb.session.updateCachedSession(msg.sessionId, (snapshot) => { snapshot.isRunning = false; });
+          send({ type: 'list_sessions' });
+        }
         break;
 
       case 'system_message':
@@ -462,35 +484,7 @@
     }
   });
 
-  msgInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
-      e.preventDefault();
-      CCWeb.ui.sendMessage();
-      return;
-    }
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      CCWeb.ui.showCmdMenu(msgInput.value);
-    }
-    if (e.key === 'ArrowUp' && cmdMenu && !cmdMenu.hidden) {
-      e.preventDefault();
-      CCWeb.ui.navigateCmdMenu(-1);
-    }
-    if (e.key === 'ArrowDown' && cmdMenu && !cmdMenu.hidden) {
-      e.preventDefault();
-      CCWeb.ui.navigateCmdMenu(1);
-    }
-  });
-
-  msgInput.addEventListener('input', () => {
-    CCWeb.ui.autoResize();
-    const val = msgInput.value;
-    if (val.startsWith('/')) {
-      CCWeb.ui.showCmdMenu(val);
-    } else if (cmdMenu) {
-      CCWeb.ui.hideCmdMenu();
-    }
-  });
+  CCWeb.ui.bindComposerEvents();
 
   sendBtn.addEventListener('click', () => CCWeb.ui.sendMessage());
   abortBtn.addEventListener('click', () => {

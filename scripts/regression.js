@@ -13,6 +13,7 @@ const SERVER_PATH = path.join(REPO_DIR, 'server.js');
 const MOCK_CLAUDE = path.join(REPO_DIR, 'scripts', 'mock-claude.js');
 const MOCK_CODEX = path.join(REPO_DIR, 'scripts', 'mock-codex.js');
 const MOCK_GEMINI = path.join(REPO_DIR, 'scripts', 'mock-gemini.js');
+const MOCK_CCSWITCH = path.join(REPO_DIR, 'scripts', 'mock-ccswitch.js');
 const COMMAND_MANIFEST = require('../shared/commands.json');
 const HAS_SQLITE3 = (() => {
   try {
@@ -499,6 +500,7 @@ async function main() {
   try {
     await withServer({
       PORT: String(port),
+      HOST: '127.0.0.1',
       CC_WEB_PASSWORD: password,
       CC_WEB_CONFIG_DIR: configDir,
       CC_WEB_SESSIONS_DIR: sessionsDir,
@@ -508,7 +510,17 @@ async function main() {
       CLAUDE_PATH: MOCK_CLAUDE,
       CODEX_PATH: MOCK_CODEX,
       GEMINI_PATH: MOCK_GEMINI,
+      CC_SWITCH_CLI_PATH: MOCK_CCSWITCH,
     }, async ({ stderr }) => {
+    const healthResponse = await fetch(`http://127.0.0.1:${port}/api/health`);
+    assert(healthResponse.ok, '/api/health should be reachable');
+    const healthPayload = await healthResponse.json();
+    assert(healthPayload.ok === true, '/api/health should report ok');
+    assert(healthPayload.bind?.host === '127.0.0.1' && healthPayload.bind?.port === port, '/api/health should expose the actual bind host and port');
+    assert(healthPayload.runtime?.commandCount === COMMAND_MANIFEST.length, '/api/health should expose command manifest count');
+    assert(healthPayload.features?.slashCompletions === true, '/api/health should expose slash completion capability');
+    assert(!JSON.stringify(healthPayload).includes(password), '/api/health should not expose the configured password');
+
     const commandResponse = await fetch(`http://127.0.0.1:${port}/api/commands`);
     assert(commandResponse.ok, '/api/commands should be reachable');
     const commandPayload = await commandResponse.json();
@@ -517,16 +529,35 @@ async function main() {
       assert(commandNames.has(command), `command manifest should expose ${command}`);
     }
     assert(commandPayload.commands.length === COMMAND_MANIFEST.length, 'server command payload should match shared command manifest length');
+    const nativeTopLevelResponse = await fetch(`http://127.0.0.1:${port}/api/slash-completions?agent=claude&input=${encodeURIComponent('/')}`);
+    assert(nativeTopLevelResponse.ok, '/api/slash-completions should be reachable');
+    const nativeTopLevel = await nativeTopLevelResponse.json();
+    assert(nativeTopLevel.commands?.[0]?.kind === 'native', 'native slash completions should rank CLI commands before web helpers');
+    assert(nativeTopLevel.commands.some((command) => command.cmd === '/mcp' && command.source === 'Claude CLI'), 'native slash completions should include commands parsed from the current CLI help');
+    assert(nativeTopLevel.commands.filter((command) => command.cmd === '/doctor').length === 1, 'native slash completions should not duplicate native and web commands with the same name');
+    const nativeSubcommandResponse = await fetch(`http://127.0.0.1:${port}/api/slash-completions?agent=claude&input=${encodeURIComponent('/mcp ')}`);
+    const nativeSubcommands = await nativeSubcommandResponse.json();
+    assert(nativeSubcommands.commands.some((command) => command.cmd === '/mcp list' && command.completion === '/mcp list'), 'native slash completions should expose CLI subcommands after a trailing space');
+    const nativeOptionResponse = await fetch(`http://127.0.0.1:${port}/api/slash-completions?agent=claude&input=${encodeURIComponent('/mcp add --')}`);
+    const nativeOptions = await nativeOptionResponse.json();
+    assert(nativeOptions.commands.some((command) => command.cmd === '--transport' && command.completion === '/mcp add --transport '), 'native slash completions should expose CLI options for subcommands');
     const appSource = fs.readFileSync(path.join(REPO_DIR, 'public', 'app.js'), 'utf8');
     const indexSource = fs.readFileSync(path.join(REPO_DIR, 'public', 'index.html'), 'utf8');
     const settingsSource = fs.readFileSync(path.join(REPO_DIR, 'public', 'js', 'settings.js'), 'utf8');
+    const sessionSource = fs.readFileSync(path.join(REPO_DIR, 'public', 'js', 'session.js'), 'utf8');
+    const uiSource = fs.readFileSync(path.join(REPO_DIR, 'public', 'js', 'ui.js'), 'utf8');
     const styleSource = fs.readFileSync(path.join(REPO_DIR, 'public', 'style.css'), 'utf8');
     const markdownSource = fs.readFileSync(path.join(REPO_DIR, 'public', 'js', 'markdown.js'), 'utf8');
+    const agentManagerSource = fs.readFileSync(path.join(REPO_DIR, 'lib', 'agent-manager.js'), 'utf8');
+    const routesSource = fs.readFileSync(path.join(REPO_DIR, 'lib', 'routes.js'), 'utf8');
+    const sessionStoreSource = fs.readFileSync(path.join(REPO_DIR, 'lib', 'session-store.js'), 'utf8');
     assert(/renderer\.html\s*=/.test(appSource + markdownSource) && /safeMarkdownUrl/.test(appSource + markdownSource), 'frontend markdown renderer should block raw HTML and unsafe URLs');
     assert(!/\.login-box\s+button\s*\{[^}]*width:\s*100%/s.test(styleSource), 'login box must not apply full-width button styles to every nested button');
     assert(/class="[^"]*\blogin-submit-btn\b[^"]*"/.test(indexSource), 'login submit button should have an explicit component class');
     assert((indexSource + settingsSource).match(/<div class="login-logo">A<\/div>/g)?.length === 2, 'login logo should use A branding');
     assert(/\.login-pw-wrapper\s+\.pw-toggle-btn\s*\{[^}]*width:\s*40px[^}]*height:\s*40px/s.test(styleSource), 'password toggle should have a fixed tap target and not cover the password input');
+    assert(/body\s*\{[\s\S]*height:\s*calc\(var\(--vh,\s*1vh\)\s*\*\s*100\);[\s\S]*height:\s*100dvh;/s.test(styleSource), 'body should let modern 100dvh override stale --vh values');
+    assert(/\.app\s*\{[\s\S]*height:\s*calc\(var\(--vh,\s*1vh\)\s*\*\s*100\);[\s\S]*height:\s*100dvh;/s.test(styleSource), 'app should let modern 100dvh override stale --vh values');
     const darkThemeBlock = cssThemeBlock(styleSource, 'washi-dark');
     for (const token of ['--surface-page', '--surface-panel', '--surface-panel-strong', '--surface-muted', '--line-soft', '--line-strong', '--shadow-panel', '--shadow-float', '--control-bg', '--control-bg-hover', '--field-bg', '--field-border', '--glass-bg', '--glass-border', '--inline-code-bg', '--inline-code-text', '--warning-bg', '--warning-border', '--warning-text']) {
       assert(new RegExp(`${token}\\s*:`).test(darkThemeBlock), `dark theme should define ${token}`);
@@ -541,15 +572,67 @@ async function main() {
       assert(new RegExp(`const\\s+${domName}\\s*=\\s*\\$\\(`).test(appSource), `frontend should bind ${domName} for modular UI code`);
       assert(new RegExp(`\\b${domName}\\b[\\s,]`).test(appSource.slice(appSource.indexOf('CCWeb.dom = {'))), `CCWeb.dom should expose ${domName}`);
     }
+    assert(/agents\.includes\(state\.currentAgent\)/.test(uiSource), 'slash command menu should filter commands by the current runtime agent');
+    assert(/kind:\s*String\(command\?\.kind/.test(uiSource), 'slash command menu should preserve command kind metadata from the server manifest');
+    assert(/cmd-item-kind/.test(uiSource), 'slash command menu should label native versus web commands');
+    assert(/nativeFirst\s*=\s*Number\(b\.kind === 'native'\)/.test(uiSource), 'slash command menu should rank native CLI commands before web-only helpers');
+    assert(/\/api\/slash-completions/.test(uiSource), 'slash command menu should ask the server for native CLI completions, not only static manifest entries');
+    assert(/scrollIntoView/.test(uiSource), 'slash command keyboard navigation should keep the active candidate visible');
+    assert(/function bindComposerEvents\(\)/.test(uiSource) && /CCWeb\.ui\.bindComposerEvents\(\)/.test(appSource), 'composer key handling should be owned by the modular UI binding');
+    assert(/\.cmd-menu\s*\{[\s\S]*max-height:\s*min\(/.test(styleSource), 'slash command menu should have a viewport-bounded height');
+    assert(/\.cmd-menu\s*\{[\s\S]*overflow-y:\s*auto/.test(styleSource), 'slash command menu should scroll instead of clipping candidates');
+    assert(/spawn\(launch\.command,\s*launch\.args/.test(routesSource), 'native slash commands should stream from a spawned CLI process');
+    assert(!/function sanitizeNativeCliOutput[\s\S]{0,500}\.trim\(\)/.test(routesSource), 'native CLI streaming should preserve chunk whitespace instead of trimming terminal output');
+    assert(!/CCWeb\.send\(\{\s*type:\s*'detach_view'\s*\}\)/.test(sessionSource), 'switching sessions should keep other running conversations attached for session-scoped realtime events');
+    assert(!/state\.sessions\.filter\(\(s\)[\s\S]{0,120}currentAgent/.test(sessionSource), 'sidebar session list should be a unified recent list, not filtered by selected agent');
+    assert(/session-agent-badge/.test(sessionSource), 'sidebar sessions should include an agent badge instead of grouping by agent');
+    assert(/settings-fullscreen-overlay/.test(settingsSource), 'settings should open as a full-screen settings page, not a cramped modal');
+    assert(/function showSettingsPanel\(\)\s*\{[\s\S]{0,120}closeSidebar/.test(settingsSource), 'opening settings should dismiss the mobile sidebar');
+    assert(/settings-runtime-center/.test(settingsSource) && /settings-runtime-grid/.test(settingsSource), 'settings should expose a unified runtime center');
+    assert(/CC_SWITCH_APPS\s*=\s*\['claude', 'codex', 'gemini'\]/.test(settingsSource), 'CC Switch runtime center should manage Gemini alongside Claude and Codex');
+    assert(/envStatus/.test(settingsSource) && /toolStatus/.test(settingsSource), 'CC Switch runtime center should show env and local CLI tool health');
+    assert(/\.settings-fullscreen-overlay/.test(styleSource) && /\.settings-runtime-grid/.test(styleSource), 'stylesheet should include full-screen runtime center layout');
+    assert(/\.session-agent-badge/.test(styleSource), 'stylesheet should include agent badges for the unified session list');
+    assert(!/function handleLoadSession[\s\S]*?if \(entry\.ws === ws\) entry\.ws = null;[\s\S]*?wsSessionMap\.set\(ws, sessionId\)/.test(sessionStoreSource), 'loading one session must not detach other active sessions on the same websocket');
+    assert(!/const currentSessionId = session\.id;[\s\S]*?if \(entry\.ws === ws\) entry\.ws = null;[\s\S]*?wsSessionMap\.set\(ws, currentSessionId\)/.test(agentManagerSource), 'starting a message in one session must not detach other active sessions on the same websocket');
+    assert(/wsSessionMap\.get\(entry\.ws\) === sessionId/.test(agentManagerSource), 'process completion should distinguish foreground and background sessions by current websocket view');
 
     const badAuth = await attemptWsAuth(port, { password: 'wrong-password' });
     assert(badAuth.success === false && badAuth.banned === false, 'wrong password should return auth_result without crashing the server');
-    const healthAfterBadAuth = await fetch(`http://127.0.0.1:${port}/api/commands`);
+    const healthAfterBadAuth = await fetch(`http://127.0.0.1:${port}/api/health`);
     assert(healthAfterBadAuth.ok, 'server should stay alive after failed WebSocket auth');
 
     const { ws, messages, token } = await connectWs(port, password);
 
     await nextMessage(messages, ws, (msg) => msg.type === 'session_list');
+
+    ws.send(JSON.stringify({ type: 'get_ccswitch_state' }));
+    const ccSwitchState = await nextMessage(messages, ws, (msg) => msg.type === 'ccswitch_state' && msg.state?.cli?.ok);
+    assert(ccSwitchState.state.apps?.claude?.ok, 'CC Switch state should include Claude providers');
+    assert(ccSwitchState.state.apps?.codex?.ok, 'CC Switch state should include Codex providers');
+    assert(ccSwitchState.state.apps?.gemini?.ok, 'CC Switch state should include Gemini providers');
+    assert(ccSwitchState.state.apps?.claude?.envStatus?.ok === true, 'CC Switch state should include Claude env health');
+    assert(ccSwitchState.state.apps?.codex?.envStatus?.ok === true, 'CC Switch state should include Codex env health');
+    assert(ccSwitchState.state.apps?.gemini?.envStatus?.ok === true, 'CC Switch state should include Gemini env health');
+    assert(ccSwitchState.state.toolStatus?.tools?.claude?.ok === true, 'CC Switch state should include Claude CLI tool health');
+    assert(ccSwitchState.state.toolStatus?.tools?.codex?.ok === true, 'CC Switch state should include Codex CLI tool health');
+    assert(ccSwitchState.state.toolStatus?.tools?.gemini?.ok === true, 'CC Switch state should include Gemini CLI tool health');
+
+    ws.send(JSON.stringify({ type: 'switch_ccswitch_provider', app: 'gemini', providerId: 'gemini-alt' }));
+    await nextMessage(messages, ws, (msg) => msg.type === 'ccswitch_switch_result' && msg.success && msg.app === 'gemini');
+
+    const claudeCwd = path.join(tempRoot, 'claude-space');
+    mkdirp(claudeCwd);
+    ws.send(JSON.stringify({ type: 'new_session', agent: 'claude', cwd: claudeCwd, mode: 'plan' }));
+    const claudeSession = await nextMessage(messages, ws, (msg) => msg.type === 'session_info' && msg.agent === 'claude' && msg.cwd === claudeCwd);
+    ws.send(JSON.stringify({ type: 'message', text: '/mcp', sessionId: claudeSession.sessionId, mode: 'plan', agent: 'claude' }));
+    await nextMessage(messages, ws, (msg) => msg.type === 'text_delta' && msg.sessionId === claudeSession.sessionId && /原生命令实时输出/.test(msg.text || ''));
+    await nextMessage(messages, ws, (msg) => msg.type === 'text_delta' && msg.sessionId === claudeSession.sessionId && /Usage: claude mcp[\s\S]*List configured MCP servers/.test(msg.text || ''));
+    await nextMessage(messages, ws, (msg) => msg.type === 'done' && msg.sessionId === claudeSession.sessionId);
+
+    ws.send(JSON.stringify({ type: 'message', text: '/mcp list', sessionId: claudeSession.sessionId, mode: 'plan', agent: 'claude' }));
+    await nextMessage(messages, ws, (msg) => msg.type === 'text_delta' && msg.sessionId === claudeSession.sessionId && /Claude native start mcp list/.test(msg.text || ''));
+    await nextMessage(messages, ws, (msg) => msg.type === 'done' && msg.sessionId === claudeSession.sessionId);
 
     ws.send(JSON.stringify({ type: 'new_session', agent: 'hermes', mode: 'yolo' }));
     const hermesSession = await nextMessage(messages, ws, (msg) => msg.type === 'session_info' && msg.agent === 'hermes');
@@ -595,6 +678,10 @@ async function main() {
     await nextMessage(messages, ws, (msg) => msg.type === 'done' && msg.sessionId === geminiSession.sessionId);
     const storedGemini = JSON.parse(fs.readFileSync(path.join(sessionsDir, `${geminiSession.sessionId}.json`), 'utf8'));
     assert(storedGemini.geminiSessionId, 'Gemini native session id should be captured from init event');
+
+    ws.send(JSON.stringify({ type: 'message', text: '/extensions', sessionId: geminiSession.sessionId, mode: 'yolo', agent: 'gemini' }));
+    await nextMessage(messages, ws, (msg) => msg.type === 'text_delta' && msg.sessionId === geminiSession.sessionId && /gemini extensions <command>[\s\S]*Lists installed extensions/.test(msg.text || ''));
+    await nextMessage(messages, ws, (msg) => msg.type === 'done' && msg.sessionId === geminiSession.sessionId);
 
     ws.send(JSON.stringify({ type: 'message', text: 'gemini fail filtered stderr', sessionId: geminiSession.sessionId, mode: 'yolo', agent: 'gemini' }));
     const geminiFailure = await nextMessage(messages, ws, (msg) => msg.type === 'error' && /Gemini 任务/.test(msg.message || ''));
@@ -650,12 +737,18 @@ async function main() {
 
     ws.send(JSON.stringify({ type: 'message', text: '/permissions yolo', sessionId: codexSession.sessionId, mode: 'plan', agent: 'codex' }));
     await nextMessage(messages, ws, (msg) => msg.type === 'mode_changed' && msg.mode === 'yolo');
+    await nextMessage(messages, ws, (msg) => (
+      msg.type === 'system_message'
+      && /实际生效/.test(msg.message || '')
+      && /dangerously-bypass-approvals-and-sandbox/.test(msg.message || '')
+    ));
 
     ws.send(JSON.stringify({ type: 'message', text: '/resume', sessionId: codexSession.sessionId, mode: 'yolo', agent: 'codex' }));
     await nextMessage(messages, ws, (msg) => msg.type === 'system_message' && /自动 resume|尚未建立原生会话/.test(msg.message || ''));
 
     ws.send(JSON.stringify({ type: 'message', text: '/mcp', sessionId: codexSession.sessionId, mode: 'yolo', agent: 'codex' }));
-    await nextMessage(messages, ws, (msg) => msg.type === 'system_message' && /codex mcp/.test(msg.message || '') && !/未知指令/.test(msg.message || ''));
+    await nextMessage(messages, ws, (msg) => msg.type === 'text_delta' && msg.sessionId === codexSession.sessionId && /Manage external MCP servers for Codex[\s\S]*Commands:\s*\n\s*list/.test(msg.text || ''));
+    await nextMessage(messages, ws, (msg) => msg.type === 'done' && msg.sessionId === codexSession.sessionId);
 
     ws.send(JSON.stringify({ type: 'message', text: '/login', sessionId: codexSession.sessionId, mode: 'yolo', agent: 'codex' }));
     await nextMessage(messages, ws, (msg) => msg.type === 'system_message' && /codex login/.test(msg.message || '') && !/未知指令/.test(msg.message || ''));
@@ -671,6 +764,18 @@ async function main() {
     const runningSessionList = await nextMessage(messages, ws, (msg) => msg.type === 'session_list' && msg.sessions.some((s) => s.id === firstMessageSession.sessionId && s.isRunning));
     assert(runningSessionList.sessions.some((s) => s.id === firstMessageSession.sessionId && s.isRunning), 'Running Codex session should be marked as isRunning');
     await nextMessage(messages, ws, (msg) => msg.type === 'done' && msg.sessionId === firstMessageSession.sessionId);
+
+    ws.send(JSON.stringify({ type: 'message', text: 'slow logical completion first', sessionId: firstMessageSession.sessionId, mode: 'yolo', agent: 'codex' }));
+    const slowDelta = await nextMessage(messages, ws, (msg) => msg.type === 'text_delta' && /slow logical completion first/.test(msg.text || ''));
+    assert(slowDelta.sessionId === firstMessageSession.sessionId, 'streaming text deltas must carry their source session id');
+    await nextMessage(messages, ws, (msg) => msg.type === 'turn_done' && msg.sessionId === firstMessageSession.sessionId, 5000);
+    discardMessages(messages, (msg) => msg.type === 'done' && msg.sessionId === firstMessageSession.sessionId);
+
+    ws.send(JSON.stringify({ type: 'message', text: 'second after logical completion', sessionId: firstMessageSession.sessionId, mode: 'yolo', agent: 'codex' }));
+    const followupDelta = await nextMessage(messages, ws, (msg) => msg.type === 'text_delta' && /second after logical completion/.test(msg.text || ''), 5000);
+    assert(followupDelta.sessionId === firstMessageSession.sessionId, 'follow-up deltas must stay scoped to the resumed session');
+    await nextMessage(messages, ws, (msg) => msg.type === 'done' && msg.sessionId === firstMessageSession.sessionId);
+
     const codexRuntimeConfig = fs.readFileSync(path.join(configDir, 'codex-session-home', firstMessageSession.sessionId, 'config.toml'), 'utf8');
     assert(!/\[plugins\.|\[marketplaces\.|memories\s*=/.test(codexRuntimeConfig), 'Codex local runtime config should not copy plugin or memory bootstrap settings');
 

@@ -12,7 +12,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { spawnSync } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const { WebSocketServer } = require('ws');
 
 // ── Windows environment fix & load .env ────────────────────────────────────
@@ -30,7 +30,8 @@ if (fs.existsSync(envPath)) {
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const PORT = parseInt(process.env.PORT) || 8002;
+const PORT = parseInt(process.env.PORT, 10) || 8002;
+const HOST = (process.env.HOST || process.env.CC_WEB_HOST || '0.0.0.0').trim() || '0.0.0.0';
 const CLAUDE_PATH = process.env.CLAUDE_PATH || 'claude';
 const CODEX_PATH = process.env.CODEX_PATH || 'codex';
 const GEMINI_PATH = process.env.GEMINI_PATH || 'gemini';
@@ -55,6 +56,7 @@ const CODEX_LOG_DB_PATH = path.join(HOME, '.codex', 'logs_1.sqlite');
 
 const COMMAND_MANIFEST = require('./shared/commands.json');
 const COMMANDS_FOR_CLIENT = COMMAND_MANIFEST.map(({ cmd, desc, kind, agents }) => ({ cmd, desc, kind, agents }));
+const PACKAGE_JSON = require('./package.json');
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8',
@@ -300,8 +302,9 @@ function formatResumeMessage(session, agent) {
 // ── Create router ──────────────────────────────────────────────────────────
 
 const router = createRouter({
-  fs, path, crypto, https: require('https'),
+  fs, path, crypto, https: require('https'), spawn, spawnSync, buildProcessLaunch,
   PUBLIC_DIR, MIME_TYPES, COMMANDS_FOR_CLIENT, CHANGELOG_PATH, PACKAGE_JSON_PATH,
+  SERVER_HOST: HOST, SERVER_PORT: PORT, PACKAGE_JSON,
   ensureAuthLoaded: auth.ensureAuthLoaded,
   isTokenValid: auth.isTokenValid,
   isBanned: auth.isBanned,
@@ -425,10 +428,10 @@ function shutdown(reason, exitCode = 0) {
 
 function handleServerListenError(err) {
   if (err && err.code === 'EADDRINUSE') {
-    plog('WARN', 'server_port_in_use_retry', { port: PORT, host: '0.0.0.0' });
-    if (killPortOccupant(PORT)) { try { server.listen(PORT, '0.0.0.0'); } catch {} return; }
+    plog('WARN', 'server_port_in_use_retry', { port: PORT, host: HOST });
+    if (killPortOccupant(PORT)) { try { server.listen(PORT, HOST); } catch {} return; }
     plog('ERROR', 'server_port_in_use', { port: PORT, error: err.message });
-    console.error(`Agent-Web server failed: 0.0.0.0:${PORT} is already in use.`);
+    console.error(`Agent-Web server failed: ${HOST}:${PORT} is already in use.`);
     process.exit(98); return;
   }
   plog('ERROR', 'server_error', { error: err?.message || String(err) });
@@ -447,7 +450,7 @@ process.on('unhandledRejection', (reason) => {
   plog('ERROR', 'unhandled_rejection', { error: reason?.stack || reason?.message || String(reason) });
 });
 
-server.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, HOST, () => {
   auth.ensureAuthLoaded();
-  console.log(`Agent-Web server listening on 0.0.0.0:${PORT}`);
+  console.log(`Agent-Web server listening on ${HOST}:${PORT}`);
 });

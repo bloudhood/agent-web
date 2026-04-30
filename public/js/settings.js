@@ -43,6 +43,9 @@ window.CCWeb = window.CCWeb || {};
     { value: 'default', label: '默认', desc: 'CLI 原生审批；agent-web 暂不提供网页批准/拒绝面板' },
   ];
 
+  const CC_SWITCH_APPS = ['claude', 'codex', 'gemini'];
+  const CC_SWITCH_APP_LABELS = { claude: 'Claude', codex: 'Codex', gemini: 'Gemini' };
+
   // --- Local state ---
   let _onNotifyConfig = null;
   let _onNotifyTestResult = null;
@@ -602,9 +605,12 @@ window.CCWeb = window.CCWeb || {};
   function summarizeCcSwitchState(state) {
     if (!state) return '正在检测...';
     if (!state.cli?.ok) return '未找到 CLI';
-    const claude = state.apps?.claude?.currentProviderName || state.apps?.claude?.currentProviderId || '未选择';
-    const codex = state.apps?.codex?.currentProviderName || state.apps?.codex?.currentProviderId || '未选择';
-    return `Claude: ${claude} · Codex: ${codex}`;
+    return CC_SWITCH_APPS.map((app) => {
+      const appState = state.apps?.[app] || {};
+      const label = CC_SWITCH_APP_LABELS[app] || app;
+      const provider = appState.currentProviderName || appState.currentProviderId || '未选择';
+      return `${label}: ${provider}`;
+    }).join(' · ');
   }
 
   function updateCcSwitchSummary(state) {
@@ -627,12 +633,21 @@ window.CCWeb = window.CCWeb || {};
     `;
   }
 
+  function renderCcSwitchHealthPill(label, status, okText = '正常') {
+    const ok = status?.ok === true;
+    const text = ok ? okText : (status?.status || status?.summary || status?.error || '待检查');
+    return `<span class="runtime-health-pill ${ok ? 'ok' : 'warn'}">${escapeHtml(label)}：${escapeHtml(text)}</span>`;
+  }
+
   function renderCcSwitchProviderBlock(app, appState) {
-    const title = app === 'claude' ? 'Claude' : 'Codex';
+    const title = CC_SWITCH_APP_LABELS[app] || app;
+    const envPill = renderCcSwitchHealthPill('环境', appState?.envStatus, '无冲突');
+    const toolPill = renderCcSwitchHealthPill('CLI', appState?.toolStatus, '可用');
     if (!appState?.ok) {
       return `
-        <div class="ccswitch-app-block" data-ccswitch-app="${app}">
+        <div class="ccswitch-app-block runtime-app-card" data-ccswitch-app="${app}">
           <div class="ccswitch-app-title">${title}</div>
+          <div class="runtime-health-row">${envPill}${toolPill}</div>
           <div class="settings-inline-note warning">${escapeHtml(appState?.error || '无法读取 provider 列表')}</div>
         </div>
       `;
@@ -644,8 +659,12 @@ window.CCWeb = window.CCWeb || {};
       return `<option value="${escapeHtml(provider.id)}"${provider.id === currentId ? ' selected' : ''}>${escapeHtml(label)}</option>`;
     }).join('');
     return `
-      <div class="ccswitch-app-block" data-ccswitch-app="${app}">
-        <div class="ccswitch-app-title">${title}</div>
+      <div class="ccswitch-app-block runtime-app-card" data-ccswitch-app="${app}">
+        <div class="ccswitch-app-title">
+          <span>${title}</span>
+          <span class="runtime-provider-count">${providers.length} providers</span>
+        </div>
+        <div class="runtime-health-row">${envPill}${toolPill}</div>
         <div class="settings-field">
           <label>当前 Provider</label>
           <select class="settings-select" data-ccswitch-select="${app}">
@@ -654,11 +673,49 @@ window.CCWeb = window.CCWeb || {};
         </div>
         <div class="ccswitch-current-line">
           当前：<code>${escapeHtml(appState.currentProviderName || appState.currentProviderId || '未选择')}</code>
+          ${appState.currentProviderApiUrl ? `<br>API：<code>${escapeHtml(appState.currentProviderApiUrl)}</code>` : ''}
         </div>
         <div class="settings-actions ccswitch-actions">
           <button class="btn-save" type="button" data-ccswitch-apply="${app}"${providers.length ? '' : ' disabled'}>切换 ${title}</button>
         </div>
       </div>
+    `;
+  }
+
+  function renderRuntimeCenter(state) {
+    if (!state) {
+      return `
+        <section class="settings-runtime-center">
+          <div class="settings-section-title">运行时管理</div>
+          <div class="settings-inline-note">正在读取 CC Switch CLI...</div>
+        </section>
+      `;
+    }
+    if (!state.cli?.ok) {
+      return `
+        <section class="settings-runtime-center">
+          <div class="settings-section-title">运行时管理</div>
+          <div class="settings-inline-note warning">${escapeHtml(state.cli?.error || '未找到 cc-switch CLI')}</div>
+        </section>
+      `;
+    }
+    return `
+      <section class="settings-runtime-center">
+        <div class="settings-section-title">运行时管理</div>
+        <div class="settings-inline-note">
+          CC Switch 是本机 provider 与环境变量的来源；Agent-Web 只负责会话、权限与 Web 交互层。
+        </div>
+        <div class="runtime-cli-line">
+          CLI：<code>${escapeHtml(state.cli.version || 'cc-switch')}</code>
+          ${state.cli.path ? `<span title="${escapeHtml(state.cli.path)}">${escapeHtml(state.cli.path)}</span>` : ''}
+        </div>
+        <div class="settings-actions ccswitch-actions settings-runtime-actions">
+          <button class="btn-test" type="button" id="ccswitch-refresh-desktop-btn">刷新桌面端显示</button>
+        </div>
+        <div class="settings-runtime-grid">
+          ${CC_SWITCH_APPS.map((app) => renderCcSwitchProviderBlock(app, state.apps?.[app])).join('')}
+        </div>
+      </section>
     `;
   }
 
@@ -733,9 +790,9 @@ window.CCWeb = window.CCWeb || {};
         <div class="settings-actions ccswitch-actions">
           <button class="btn-test" type="button" id="ccswitch-refresh-desktop-btn">刷新桌面端显示</button>
         </div>
-        ${renderCcSwitchProviderBlock('claude', state.apps?.claude)}
-        <div class="settings-divider"></div>
-        ${renderCcSwitchProviderBlock('codex', state.apps?.codex)}
+        <div class="settings-runtime-grid">
+          ${CC_SWITCH_APPS.map((app) => renderCcSwitchProviderBlock(app, state.apps?.[app])).join('')}
+        </div>
       `;
       const refreshBtn = panel.querySelector('#ccswitch-refresh-desktop-btn');
       if (refreshBtn) {
@@ -1068,6 +1125,35 @@ window.CCWeb = window.CCWeb || {};
     modal.querySelector('#claude-info-ok').addEventListener('click', closeModal);
   }
 
+  function showCodexLocalInfoModal() {
+    const modalOverlay = document.createElement('div');
+    modalOverlay.className = 'settings-overlay';
+    modalOverlay.style.zIndex = '10001';
+    const modal = document.createElement('div');
+    modal.className = 'settings-panel';
+    modal.style.maxWidth = '460px';
+    modal.innerHTML = `
+      <div class="settings-header">
+        <h3>Codex 本地配置说明</h3>
+        <button class="settings-close" id="codex-info-close">&times;</button>
+      </div>
+      <div class="settings-inline-note">
+        选中“本地配置”时，Codex 直接复用本机 <code>~/.codex/config.toml</code> 与登录态。
+        <br><br>
+        CC Switch 负责 provider 与环境变量切换；这里的自定义 Profile 只作为 Agent-Web 的高级覆盖，用于特定 Web 会话的 API Base、Key 和默认模型。
+      </div>
+      <div class="settings-actions">
+        <button class="btn-save" id="codex-info-ok">确定</button>
+      </div>
+    `;
+    modalOverlay.appendChild(modal);
+    document.body.appendChild(modalOverlay);
+    const closeModal = () => document.body.removeChild(modalOverlay);
+    modal.querySelector('#codex-info-close').addEventListener('click', closeModal);
+    modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) closeModal(); });
+    modal.querySelector('#codex-info-ok').addEventListener('click', closeModal);
+  }
+
   // --- Settings escape ---
 
   function _settingsEscape(e) {
@@ -1077,75 +1163,133 @@ window.CCWeb = window.CCWeb || {};
   // --- Main Settings Panel ---
 
   function showSettingsPanel() {
+    if (CCWeb.ui?.closeSidebar) CCWeb.ui.closeSidebar();
     CCWeb.send({ type: 'get_model_config' });
     CCWeb.send({ type: 'get_codex_config' });
     CCWeb.send({ type: 'get_notify_config' });
     CCWeb.send({ type: 'get_ccswitch_state' });
 
     const overlay = document.createElement('div');
-    overlay.className = 'settings-overlay';
+    overlay.className = 'settings-overlay settings-fullscreen-overlay';
     overlay.id = 'settings-overlay';
 
     const panel = document.createElement('div');
-    panel.className = 'settings-panel';
+    panel.className = 'settings-panel settings-fullscreen-panel';
 
     panel.innerHTML = `
-      <h3>
-        设置
-        <button class="settings-close" title="关闭">&times;</button>
-      </h3>
-
-      <div class="settings-section-title">Claude API 配置</div>
-      <div id="claude-config-area"></div>
-      <div class="settings-actions">
-        <button class="btn-save" id="model-save-btn">保存 Claude 配置</button>
+      <div class="settings-page-header">
+        <div>
+          <div class="settings-subpage-kicker">Agent-Web</div>
+          <h3>设置</h3>
+        </div>
+        <button class="settings-close" title="返回聊天">关闭</button>
       </div>
-      <div class="settings-status" id="model-status"></div>
 
-      <div class="settings-divider"></div>
-
-      <div class="settings-section-title">Codex API 配置</div>
-      <div id="codex-config-area"></div>
-      <div class="settings-actions">
-        <button class="btn-save" id="codex-save-btn">保存 Codex 配置</button>
+      <div id="settings-runtime-center">
+        ${renderRuntimeCenter(null)}
       </div>
-      <div class="settings-status" id="codex-status"></div>
+      <div class="settings-status" id="ccswitch-status"></div>
 
-      <div class="settings-divider"></div>
+      <div class="settings-advanced-grid">
+        <section class="settings-card">
+          <div class="settings-section-title">Claude 高级覆盖</div>
+          <div id="claude-config-area"></div>
+          <div class="settings-actions">
+            <button class="btn-save" id="model-save-btn">保存 Claude 覆盖</button>
+          </div>
+          <div class="settings-status" id="model-status"></div>
+        </section>
 
-      ${buildThemeEntryHtml()}
-
-      <div class="settings-divider"></div>
-
-      ${buildNotifyEntryHtml(null)}
-
-      <div class="settings-divider"></div>
-
-      ${buildCcSwitchEntryHtml(null)}
-
-      <div class="settings-divider"></div>
-
-      <div class="settings-section-title">开发者</div>
-      <button class="settings-nav-card" type="button" data-open-dev-page>
-        <span class="settings-nav-card-main">
-          <span class="settings-nav-card-title">开发者设置</span>
-          <span class="settings-nav-card-meta">GitHub / SSH 配置</span>
-        </span>
-        <span class="settings-nav-card-arrow" aria-hidden="true">›</span>
-      </button>
-
-      <div class="settings-divider"></div>
-
-      <div class="settings-section-title">系统</div>
-      <div class="settings-actions" style="margin-top:0;flex-wrap:wrap;gap:10px">
-        <button class="btn-test" id="pw-open-modal-btn" style="padding:6px 16px">修改密码</button>
-        <button class="btn-test" id="check-update-btn" style="padding:6px 16px">检查更新</button>
+        <section class="settings-card">
+          <div class="settings-section-title">Codex 高级覆盖</div>
+          <div id="codex-config-area"></div>
+          <div class="settings-actions">
+            <button class="btn-save" id="codex-save-btn">保存 Codex 覆盖</button>
+          </div>
+          <div class="settings-status" id="codex-status"></div>
+        </section>
       </div>
-      <div class="settings-status" id="update-status" style="margin-top:8px"></div>
+
+      <div class="settings-utility-grid">
+        <section class="settings-card">
+          ${buildThemeEntryHtml()}
+        </section>
+        <section class="settings-card">
+          ${buildNotifyEntryHtml(null)}
+        </section>
+        <section class="settings-card">
+          <div class="settings-section-title">开发者</div>
+          <button class="settings-nav-card" type="button" data-open-dev-page>
+            <span class="settings-nav-card-main">
+              <span class="settings-nav-card-title">开发者设置</span>
+              <span class="settings-nav-card-meta">GitHub / SSH 配置</span>
+            </span>
+            <span class="settings-nav-card-arrow" aria-hidden="true">›</span>
+          </button>
+        </section>
+        <section class="settings-card">
+          <div class="settings-section-title">系统</div>
+          <div class="settings-actions settings-system-actions">
+            <button class="btn-test" id="pw-open-modal-btn">修改密码</button>
+            <button class="btn-test" id="check-update-btn">检查更新</button>
+          </div>
+          <div class="settings-status" id="update-status"></div>
+        </section>
+      </div>
     `;
 
     overlay.appendChild(panel);
     document.body.appendChild(overlay);
+    const runtimeCenter = panel.querySelector('#settings-runtime-center');
+    const ccSwitchStatus = panel.querySelector('#ccswitch-status');
+
+    function showCcSwitchStatus(message, type) {
+      if (!ccSwitchStatus) return;
+      ccSwitchStatus.textContent = message || '';
+      ccSwitchStatus.className = 'settings-status ' + (type || '');
+    }
+
+    function wireRuntimeCenterActions() {
+      panel.querySelectorAll('[data-ccswitch-apply]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const appTarget = button.dataset.ccswitchApply;
+          const select = panel.querySelector(`[data-ccswitch-select="${appTarget}"]`);
+          const providerId = select?.value || '';
+          if (!providerId) {
+            showCcSwitchStatus('请选择 Provider', 'error');
+            return;
+          }
+          button.disabled = true;
+          showCcSwitchStatus('正在切换 Provider...', '');
+          CCWeb.send({ type: 'switch_ccswitch_provider', app: appTarget, providerId });
+        });
+      });
+      const refreshBtn = panel.querySelector('#ccswitch-refresh-desktop-btn');
+      if (refreshBtn) {
+        refreshBtn.addEventListener('click', () => {
+          refreshBtn.disabled = true;
+          showCcSwitchStatus('正在刷新 CC Switch 桌面端...', '');
+          CCWeb.send({ type: 'refresh_ccswitch_desktop' });
+        });
+      }
+    }
+
+    _onCcSwitchState = (state) => {
+      updateCcSwitchSummary(state);
+      if (runtimeCenter) runtimeCenter.innerHTML = renderRuntimeCenter(state);
+      wireRuntimeCenterActions();
+    };
+    _onCcSwitchSwitchResult = (result) => {
+      showCcSwitchStatus(result.message || (result.success ? '切换完成' : '切换失败'), result.success ? 'success' : 'error');
+      panel.querySelectorAll('[data-ccswitch-apply]').forEach((button) => { button.disabled = false; });
+    };
+    _onCcSwitchDesktopRefreshResult = (result) => {
+      showCcSwitchStatus(result.message || (result.success ? '桌面端已刷新' : '桌面端刷新失败'), result.success ? 'success' : 'error');
+      const refreshBtn = panel.querySelector('#ccswitch-refresh-desktop-btn');
+      if (refreshBtn) refreshBtn.disabled = false;
+    };
+    wireRuntimeCenterActions();
+
     const themePageBtn = panel.querySelector('[data-open-theme-page]');
     if (themePageBtn) themePageBtn.addEventListener('click', openThemeSubpage);
     const notifyPageBtn2 = panel.querySelector('[data-open-notify-page]');
@@ -1536,7 +1680,7 @@ window.CCWeb = window.CCWeb || {};
             renderCodexConfigArea();
           }
         });
-        panel.querySelector('#codex-info-btn').addEventListener('click', showClaudeLocalInfoModal);
+        panel.querySelector('#codex-info-btn').addEventListener('click', showCodexLocalInfoModal);
         panel.querySelector('#codex-read-local-btn').addEventListener('click', () => CCWeb.send({ type: 'read_codex_local_config' }));
         return;
       }

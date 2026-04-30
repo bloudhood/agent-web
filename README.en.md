@@ -7,13 +7,13 @@ A local-first web console for controlling Claude Code, Codex, Gemini CLI, and WS
 ![Node.js](https://img.shields.io/badge/Node.js-18+-339933?logo=node.js&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-blue)
 
-[中文 README](./README.md) | [Changelog](./CHANGELOG.md) | [Security](./SECURITY.md)
+[中文 README](./README.md) | [Architecture](./docs/ARCHITECTURE.md) | [Changelog](./CHANGELOG.md) | [Security](./SECURITY.md)
 
 ## Features
 
-- **Multi-agent sessions**: Claude, Codex, Gemini CLI, and Hermes with agent-scoped session lists and runtime state.
+- **Multi-agent sessions**: Claude, Codex, Gemini CLI, and Hermes in a unified recent-session sidebar with an agent badge per session.
 - **Mobile control surface**: iOS/Chrome-oriented chat, sidebar, input area, and native-feeling pickers.
-- **Native workflow alignment**: Web commands such as `/model`, `/mode`, `/permissions`, `/status`, `/usage`, `/resume`, and `/doctor`; native CLI management commands such as `/login`, `/mcp`, and `/plugin` are preserved and mapped to terminal instructions.
+- **Native workflow alignment**: Web commands such as `/model`, `/mode`, `/permissions`, `/status`, `/usage`, `/resume`, and `/doctor`; slash completion parses the current local CLI help for commands, subcommands, and options, and safe read-only native commands stream live output.
 - **Local history import**: Claude `~/.claude/projects/` and Codex `~/.codex/sessions/`.
 - **Process recovery**: Claude/Codex/Gemini run through local CLI subprocesses. Tasks can continue after the browser disconnects and can be reattached after server recovery where possible.
 - **Hermes Gateway**: connects to a WSL or local Hermes API Server and renders tool calls.
@@ -56,6 +56,7 @@ Open `http://localhost:8002`. If no password is configured, the server prints a 
 | Variable | Required | Default | Description |
 |---|:---:|---|---|
 | `CC_WEB_PASSWORD` | No | generated | Web login password, migrated into `config/auth.json` on first start |
+| `HOST` / `CC_WEB_HOST` | No | `0.0.0.0` | Bind address. Use `127.0.0.1` for local-only use |
 | `PORT` | No | `8002` | Service port |
 | `CLAUDE_PATH` | No | `claude` | Claude Code CLI path |
 | `CODEX_PATH` | No | `codex` | Codex CLI path |
@@ -86,7 +87,13 @@ Web-handled commands:
 - `/ssh`
 - `/help`
 
-Native CLI management commands are recognized but are not executed directly in the browser when they require an interactive TTY or mutate global CLI configuration. The command menu is backed by `shared/commands.json` through the server, which keeps frontend and backend command names aligned.
+Native CLI management commands are recognized. Commands that require an interactive TTY or mutate global CLI authentication/configuration are mapped to terminal instructions; safe read commands are executed through the local CLI and streamed back live. The `/` menu gets top-level commands, subcommands, and options from the current CLI `--help` output, while Web commands are backed by `shared/commands.json`.
+
+## Runtime Diagnostics
+
+- `GET /api/health`: version, PID, Node version, actual bind host/port, active task count, command count, and feature flags.
+- `GET /api/commands`: Web/native command manifest.
+- `GET /api/slash-completions?agent=claude&input=/mcp%20`: native slash candidates for the current agent.
 
 ## Project Structure
 
@@ -234,8 +241,8 @@ node server.js
 ```
 
 **LAN access** (same Wi-Fi):
-- For security, Agent-Web listens on `127.0.0.1` by default. Prefer exposing it through a reverse proxy such as Nginx, or through Tailscale / Cloudflare Tunnel, with firewall rules limiting who can connect.
-- If LAN access is required, change the bind address from `127.0.0.1` to `0.0.0.0` (for example, add `HOST=0.0.0.0` and make the startup code read it), then open `http://<your-lan-ip>:8002`.
+- Agent-Web defaults to `0.0.0.0:8002` so phones on the LAN can open `http://<your-lan-ip>:8002`.
+- For local-only use, set `HOST=127.0.0.1`. For remote access, prefer a reverse proxy such as Nginx, Tailscale, or Cloudflare Tunnel, with firewall rules limiting who can connect.
 
 **Remote access**:
 - Recommended: [Tailscale](https://tailscale.com/) for secure private networking.
