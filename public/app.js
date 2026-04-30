@@ -68,11 +68,15 @@
   const loginError = $('#login-error');
   const rememberPw = $('#remember-pw');
   const app = $('#app');
+  const sidebar = $('#sidebar');
   const sidebarOverlay = $('#sidebar-overlay');
   const menuBtn = $('#menu-btn');
   const connBanner = $('#conn-banner');
   const pwToggleBtn = $('#pw-toggle-btn');
+  const newChatBtn = $('#new-chat-btn');
+  const importSessionBtn = $('#import-session-btn');
   const sessionList = $('#session-list');
+  const chatMain = $('.chat-main');
   const chatTitle = $('#chat-title');
   const agentSelect = $('#agent-select');
   const chatRuntimeState = $('#chat-runtime-state');
@@ -80,21 +84,26 @@
   const costDisplay = $('#cost-display');
   const imageUploadInput = $('#image-upload-input');
   const attachBtn = $('#attach-btn');
+  const attachmentTray = $('#attachment-tray');
   const messagesDiv = $('#messages');
   const msgInput = $('#msg-input');
   const sendBtn = $('#send-btn');
   const abortBtn = $('#abort-btn');
   const cmdMenu = $('#cmd-menu');
   const modeSelect = $('#mode-select');
+  const inputWrapper = $('.input-wrapper');
+  const sessionLoadingOverlay = $('#session-loading-overlay');
+  const sessionLoadingLabel = $('#session-loading-label');
   const settingsBtn = $('#settings-btn');
 
   CCWeb.dom = {
     loginOverlay, loginForm, loginPassword, loginError, rememberPw,
-    app, sidebarOverlay, menuBtn, connBanner, pwToggleBtn, sessionList,
+    app, sidebar, sidebarOverlay, menuBtn, connBanner, pwToggleBtn,
+    newChatBtn, importSessionBtn, sessionList, chatMain,
     chatTitle, agentSelect, chatRuntimeState, chatCwd, costDisplay,
-    imageUploadInput, attachBtn,
+    imageUploadInput, attachBtn, attachmentTray,
     messagesDiv, msgInput, sendBtn, abortBtn, cmdMenu, modeSelect,
-    settingsBtn, $,
+    inputWrapper, sessionLoadingOverlay, sessionLoadingLabel, settingsBtn, $,
   };
 
   // --- WebSocket ---

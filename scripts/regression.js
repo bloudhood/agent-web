@@ -222,6 +222,30 @@ function connectWs(port, password) {
   });
 }
 
+function attemptWsAuth(port, authPayload, timeoutMs = 5000) {
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
+    const timer = setTimeout(() => {
+      try { ws.close(); } catch {}
+      reject(new Error('Timed out waiting for auth_result'));
+    }, timeoutMs);
+    ws.on('open', () => {
+      ws.send(JSON.stringify({ type: 'auth', ...authPayload }));
+    });
+    ws.on('message', (buf) => {
+      const msg = JSON.parse(String(buf));
+      if (msg.type !== 'auth_result') return;
+      clearTimeout(timer);
+      try { ws.close(); } catch {}
+      resolve(msg);
+    });
+    ws.on('error', (err) => {
+      clearTimeout(timer);
+      reject(err);
+    });
+  });
+}
+
 async function uploadAttachment(port, token, { filename, mime, data }) {
   const response = await fetch(`http://127.0.0.1:${port}/api/attachments`, {
     method: 'POST',
@@ -476,6 +500,15 @@ async function main() {
     const appSource = fs.readFileSync(path.join(REPO_DIR, 'public', 'app.js'), 'utf8');
     const markdownSource = fs.readFileSync(path.join(REPO_DIR, 'public', 'js', 'markdown.js'), 'utf8');
     assert(/renderer\.html\s*=/.test(appSource + markdownSource) && /safeMarkdownUrl/.test(appSource + markdownSource), 'frontend markdown renderer should block raw HTML and unsafe URLs');
+    for (const domName of ['sidebar', 'newChatBtn', 'importSessionBtn', 'chatMain', 'sessionLoadingOverlay', 'sessionLoadingLabel', 'attachmentTray', 'inputWrapper']) {
+      assert(new RegExp(`const\\s+${domName}\\s*=\\s*\\$\\(`).test(appSource), `frontend should bind ${domName} for modular UI code`);
+      assert(new RegExp(`\\b${domName}\\b[\\s,]`).test(appSource.slice(appSource.indexOf('CCWeb.dom = {'))), `CCWeb.dom should expose ${domName}`);
+    }
+
+    const badAuth = await attemptWsAuth(port, { password: 'wrong-password' });
+    assert(badAuth.success === false && badAuth.banned === false, 'wrong password should return auth_result without crashing the server');
+    const healthAfterBadAuth = await fetch(`http://127.0.0.1:${port}/api/commands`);
+    assert(healthAfterBadAuth.ok, 'server should stay alive after failed WebSocket auth');
 
     const { ws, messages, token } = await connectWs(port, password);
 
