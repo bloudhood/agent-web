@@ -11,6 +11,7 @@ import { authStore } from './stores/auth.svelte';
 import { sessionsStore } from './stores/sessions.svelte';
 import { chatStore } from './stores/chat.svelte';
 import { toastStore } from './stores/toast.svelte';
+import { normalizeHistoryMessages, type ServerHistoryMessage } from './history-normalizer';
 import type { WsOutbound } from '@shared/ws-messages';
 
 export function bindStoresToWs(ws: WsClient): () => void {
@@ -89,32 +90,15 @@ export function bindStoresToWs(ws: WsClient): () => void {
         sessionsStore.setCurrent(m.sessionId);
         chatStore.setForeground(m.sessionId);
 
-        // Server uses `content`/`timestamp`; chatStore uses `text`/`ts`.
-        const normalized = (m.messages || []).map((raw) => {
-          const role = raw.role === 'assistant' || raw.role === 'system' ? raw.role : 'user';
-          const text = typeof raw.text === 'string'
-            ? raw.text
-            : typeof raw.content === 'string'
-              ? raw.content
-              : Array.isArray(raw.content)
-                ? (raw.content as Array<{ text?: string }>).map((c) => c?.text || '').filter(Boolean).join('')
-                : '';
-          const ts = typeof raw.ts === 'number'
-            ? raw.ts
-            : typeof raw.timestamp === 'number'
-              ? raw.timestamp
-              : typeof raw.timestamp === 'string'
-                ? Date.parse(raw.timestamp) || Date.now()
-                : Date.now();
-          return {
-            role,
-            text,
-            ts,
-            thinking: raw.thinking,
-            toolCalls: Array.isArray(raw.toolCalls) ? (raw.toolCalls as Parameters<typeof chatStore.upsertTool>[0][]) : undefined,
-          };
-        });
-        chatStore.reset(normalized as Parameters<typeof chatStore.reset>[0]);
+        chatStore.reset(normalizeHistoryMessages(m.messages || []));
+        return;
+      }
+
+      case 'session_history_chunk': {
+        const m = msg as { sessionId?: string; messages?: ServerHistoryMessage[] };
+        if (m.sessionId && m.sessionId === chatStore.foregroundSessionId) {
+          chatStore.prependMessages(normalizeHistoryMessages(m.messages || []));
+        }
         return;
       }
 
@@ -271,6 +255,19 @@ export function bindStoresToWs(ws: WsClient): () => void {
             toolInput: m.toolInput,
             options: m.options ?? ['allow_once', 'reject'],
           });
+        }
+        return;
+      }
+
+      case 'password_changed': {
+        const m = msg as { success: boolean; token?: string; message?: string };
+        if (m.success) {
+          if (m.token) authStore.setToken(m.token);
+          authStore.setMustChange(false);
+          localStorage.removeItem('cc-web-pw');
+          toastStore.success('密码修改成功', m.message);
+        } else {
+          toastStore.warning('密码修改失败', m.message || '请检查当前密码');
         }
         return;
       }

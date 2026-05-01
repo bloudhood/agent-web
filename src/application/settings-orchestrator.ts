@@ -8,6 +8,7 @@
 
 import { z } from 'zod';
 import { type Result, ok, err, DomainError } from '@core/result';
+import { validatePasswordStrength } from '@shared/password-policy';
 
 export const SaveModelConfigSchema = z.object({
   type: z.literal('save_model_config'),
@@ -31,7 +32,7 @@ export const SaveDevConfigSchema = z.object({
 
 export const ChangePasswordSchema = z.object({
   type: z.literal('change_password'),
-  oldPassword: z.string().optional(),
+  currentPassword: z.string(),
   newPassword: z.string(),
 });
 
@@ -50,7 +51,7 @@ export interface SettingsHandlers {
   saveCodexConfig(config: unknown): Promise<Result<unknown, DomainError>>;
   saveNotifyConfig(config: unknown): Promise<Result<unknown, DomainError>>;
   saveDevConfig(config: unknown): Promise<Result<unknown, DomainError>>;
-  changePassword(oldPassword: string | undefined, newPassword: string): Promise<Result<{ token: string }, DomainError>>;
+  changePassword(currentPassword: string, newPassword: string): Promise<Result<{ token: string }, DomainError>>;
 }
 
 export interface SettingsOrchestrator {
@@ -75,10 +76,13 @@ export function createSettingsOrchestrator(): SettingsOrchestrator {
         case 'save_dev_config':
           return handlers.saveDevConfig(msg.config);
         case 'change_password':
-          if (!msg.newPassword || msg.newPassword.length < 4) {
-            return err(new DomainError('WEAK_PASSWORD', '新密码不能少于 4 个字符'));
+          {
+            const strength = validatePasswordStrength(msg.newPassword);
+            if (!strength.valid) {
+              return err(new DomainError('WEAK_PASSWORD', strength.message));
+            }
+            return handlers.changePassword(msg.currentPassword, msg.newPassword);
           }
-          return handlers.changePassword(msg.oldPassword, msg.newPassword);
       }
     },
   };

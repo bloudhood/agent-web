@@ -9,6 +9,7 @@
   import SettingsView from '@web/features/settings/SettingsView.svelte';
   import { sessionsStore } from '@web/lib/stores/sessions.svelte';
   import { chatStore } from '@web/lib/stores/chat.svelte';
+  import { authStore } from '@web/lib/stores/auth.svelte';
   import { uiStore } from '@web/lib/stores/ui.svelte';
   import { toastStore } from '@web/lib/stores/toast.svelte';
   import { getWsClient } from '@web/lib/ws-context.svelte';
@@ -27,6 +28,10 @@
   let importingSession = $state(false);
   let nativeGroups = $state<ClaudeNativeGroup[]>([]);
   let codexSessions = $state<CodexNativeSession[]>([]);
+
+  $effect(() => {
+    if (authStore.mustChangePassword) settingsOpen = true;
+  });
 
   onMount(() => {
     const ws = getWsClient();
@@ -189,7 +194,7 @@
     <ChatView onToggleSidebar={() => uiStore.toggleSidebar()} />
   </div>
 
-  <SettingsView open={settingsOpen} onClose={() => (settingsOpen = false)} />
+  <SettingsView open={settingsOpen} onClose={() => { if (!authStore.mustChangePassword) settingsOpen = false; }} />
   <ImportSessionsDialog
     open={importOpen}
     loading={importLoading}

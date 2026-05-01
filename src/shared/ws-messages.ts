@@ -84,6 +84,12 @@ export const InPermissionResponseSchema = z.object({
   decision: z.enum(['allow_once', 'allow_always', 'reject']),
 });
 
+export const InChangePasswordSchema = z.object({
+  type: z.literal('change_password'),
+  currentPassword: z.string(),
+  newPassword: z.string(),
+});
+
 export const WsInboundCoreSchema = z.discriminatedUnion('type', [
   InAuthSchema,
   InMessageSchema,
@@ -96,6 +102,7 @@ export const WsInboundCoreSchema = z.discriminatedUnion('type', [
   InRenameSessionSchema,
   InSetModeSchema,
   InPermissionResponseSchema,
+  InChangePasswordSchema,
 ]);
 
 /**
@@ -180,6 +187,55 @@ export const OutErrorSchema = z.object({
   message: z.string(),
 });
 
+export const HistoryMessageSchema = z.object({
+  role: z.string().optional(),
+  content: z.unknown().optional(),
+  text: z.string().optional(),
+  timestamp: z.union([z.string(), z.number()]).nullable().optional(),
+  ts: z.number().optional(),
+  thinking: z.string().optional(),
+  toolCalls: z.array(z.unknown()).optional(),
+}).passthrough();
+
+export const TotalUsageSchema = z.object({
+  inputTokens: z.number(),
+  cachedInputTokens: z.number(),
+  outputTokens: z.number(),
+});
+
+export const OutSessionInfoSchema = z.object({
+  type: z.literal('session_info'),
+  sessionId: z.string(),
+  messages: z.array(HistoryMessageSchema).optional(),
+  title: z.string().optional(),
+  mode: PermissionModeSchema.optional(),
+  model: z.string().optional(),
+  agent: AgentIdSchema.optional(),
+  hasUnread: z.boolean().optional(),
+  cwd: z.string().nullable().optional(),
+  totalCost: z.number().optional(),
+  totalUsage: TotalUsageSchema.nullable().optional(),
+  historyTotal: z.number().optional(),
+  historyBuffered: z.number().optional(),
+  historyPending: z.boolean().optional(),
+  updated: z.string().nullable().optional(),
+  isRunning: z.boolean().optional(),
+});
+
+export const OutSessionHistoryChunkSchema = z.object({
+  type: z.literal('session_history_chunk'),
+  sessionId: z.string(),
+  messages: z.array(HistoryMessageSchema),
+  remaining: z.number().optional(),
+});
+
+export const OutPasswordChangedSchema = z.object({
+  type: z.literal('password_changed'),
+  success: z.boolean(),
+  token: z.string().optional(),
+  message: z.string().optional(),
+});
+
 /**
  * Reasoning / thinking-block delta. Phase 3.1 adds dedicated UI for this so
  * thinking blocks can be folded independently of the main answer text.
@@ -214,6 +270,9 @@ export const WsOutboundCoreSchema = z.discriminatedUnion('type', [
   OutCostSchema,
   OutUsageSchema,
   OutErrorSchema,
+  OutSessionInfoSchema,
+  OutSessionHistoryChunkSchema,
+  OutPasswordChangedSchema,
   OutThinkingDeltaSchema,
   OutPermissionPromptSchema,
 ]);

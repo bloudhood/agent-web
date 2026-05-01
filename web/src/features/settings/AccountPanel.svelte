@@ -3,6 +3,7 @@
   import { authStore } from '@web/lib/stores/auth.svelte';
   import { toastStore } from '@web/lib/stores/toast.svelte';
   import { getWsClient } from '@web/lib/ws-context.svelte';
+  import { validatePasswordStrength } from '@shared/password-policy';
 
   let oldPassword = $state('');
   let newPassword = $state('');
@@ -10,8 +11,9 @@
   let submitting = $state(false);
 
   function submit() {
-    if (newPassword.length < 4) {
-      toastStore.warning('密码过短', '至少 4 个字符');
+    const strength = validatePasswordStrength(newPassword);
+    if (!strength.valid) {
+      toastStore.warning('密码不符合要求', strength.message);
       return;
     }
     if (newPassword !== confirm) {
@@ -21,7 +23,7 @@
     submitting = true;
     getWsClient().send({
       type: 'change_password',
-      oldPassword,
+      currentPassword: oldPassword,
       newPassword,
     });
     setTimeout(() => { submitting = false; }, 1500);
@@ -42,7 +44,7 @@
 
     <div class="grid gap-3">
       <Input bind:value={oldPassword} type="password" placeholder="当前密码" />
-      <Input bind:value={newPassword} type="password" placeholder="新密码（至少 4 位）" />
+      <Input bind:value={newPassword} type="password" placeholder="新密码（至少 8 位，包含 2 类字符）" />
       <Input bind:value={confirm} type="password" placeholder="确认新密码" />
     </div>
 

@@ -585,6 +585,10 @@ async function main() {
     const chatHeaderSource = fs.readFileSync(path.join(REPO_DIR, 'web', 'src', 'features', 'chat', 'ChatHeader.svelte'), 'utf8');
     const messageStreamSource = fs.readFileSync(path.join(REPO_DIR, 'web', 'src', 'features', 'chat', 'MessageStream.svelte'), 'utf8');
     const toolCardSource = fs.readFileSync(path.join(REPO_DIR, 'web', 'src', 'features', 'chat', 'ToolCallCard.svelte'), 'utf8');
+    const accountPanelSource = fs.readFileSync(path.join(REPO_DIR, 'web', 'src', 'features', 'settings', 'AccountPanel.svelte'), 'utf8');
+    const wsBridgeSource = fs.readFileSync(path.join(REPO_DIR, 'web', 'src', 'lib', 'ws-bridge.ts'), 'utf8');
+    const mainLayoutSource = fs.readFileSync(path.join(REPO_DIR, 'web', 'src', 'app', 'MainLayout.svelte'), 'utf8');
+    const passwordPolicySource = fs.readFileSync(path.join(REPO_DIR, 'src', 'shared', 'password-policy.ts'), 'utf8');
     const tokenSource = fs.readFileSync(path.join(REPO_DIR, 'web', 'src', 'styles', 'tokens.css'), 'utf8');
     assert(/renderer\.html\s*=/.test(appSource + markdownSource) && /safeMarkdownUrl/.test(appSource + markdownSource), 'frontend markdown renderer should block raw HTML and unsafe URLs');
     assert(!/\.login-box\s+button\s*\{[^}]*width:\s*100%/s.test(styleSource), 'login box must not apply full-width button styles to every nested button');
@@ -636,6 +640,11 @@ async function main() {
     assert(!/运行中/.test(chatHeaderSource), 'chat header should not show a top-level running breathing indicator');
     assert(/assistant-pending/.test(messageStreamSource), 'message stream should show an in-chat breathing placeholder while waiting for AI output');
     assert(/exitCode/.test(toolCardSource) && /tool-output/.test(toolCardSource), 'tool cards should expose structured status and output sections');
+    assert(/currentPassword:\s*oldPassword/.test(accountPanelSource), 'Svelte password panel should send the backend currentPassword field');
+    assert(/validatePasswordStrength/.test(accountPanelSource) && /密码长度至少 8 位/.test(passwordPolicySource), 'Svelte password panel should mirror backend password strength rules');
+    assert(/case 'password_changed'/.test(wsBridgeSource) && /authStore\.setToken/.test(wsBridgeSource), 'Svelte WS bridge should handle password_changed and refresh the auth token');
+    assert(/case 'session_history_chunk'/.test(wsBridgeSource) && /prependMessages/.test(wsBridgeSource), 'Svelte WS bridge should prepend chunked older session history');
+    assert(/authStore\.mustChangePassword/.test(mainLayoutSource) && /settingsOpen\s*=\s*true/.test(mainLayoutSource), 'Svelte shell should force-open account settings when password change is required');
     assert(/--r-md:\s*18px/.test(tokenSource) && /--r-xl:\s*28px/.test(tokenSource), 'radius tokens should be enlarged for a softer Apple-style UI');
 
     const badAuth = await attemptWsAuth(port, { password: 'wrong-password' });

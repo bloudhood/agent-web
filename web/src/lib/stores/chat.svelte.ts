@@ -67,6 +67,11 @@ function createChatStore() {
       messages = [...messages, msg];
     },
 
+    prependMessages(messagesNext: ChatMessage[]) {
+      if (messagesNext.length === 0) return;
+      messages = [...messagesNext, ...messages];
+    },
+
     startTurn() {
       streamingText = '';
       streamingThinking = '';

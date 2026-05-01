@@ -36,10 +36,26 @@ describe('SettingsOrchestrator', () => {
       saveDevConfig: vi.fn(),
       changePassword: vi.fn().mockResolvedValue(ok({ token: 't' })),
     };
-    const msg = o.parse({ type: 'change_password', newPassword: '12' })!;
+    const msg = o.parse({ type: 'change_password', currentPassword: 'old', newPassword: '12' })!;
     const r = await o.dispatch(msg, handlers);
     expect(r.ok).toBe(false);
     if (r.ok === false) expect(r.error.code).toBe('WEAK_PASSWORD');
+    expect(handlers.changePassword).not.toHaveBeenCalled();
+  });
+
+  it('change_password rejects single-class password', async () => {
+    const o = createSettingsOrchestrator();
+    const handlers = {
+      saveModelConfig: vi.fn(),
+      saveCodexConfig: vi.fn(),
+      saveNotifyConfig: vi.fn(),
+      saveDevConfig: vi.fn(),
+      changePassword: vi.fn().mockResolvedValue(ok({ token: 't' })),
+    };
+    const msg = o.parse({ type: 'change_password', currentPassword: 'old', newPassword: 'strongpw' })!;
+    const r = await o.dispatch(msg, handlers);
+    expect(r.ok).toBe(false);
+    if (r.ok === false) expect(r.error.message).toContain('至少 2 种字符类型');
     expect(handlers.changePassword).not.toHaveBeenCalled();
   });
 
@@ -52,9 +68,9 @@ describe('SettingsOrchestrator', () => {
       saveDevConfig: vi.fn(),
       changePassword: vi.fn().mockResolvedValue(ok({ token: 'new-token' })),
     };
-    const msg = o.parse({ type: 'change_password', newPassword: 'strongpw', oldPassword: 'old' })!;
+    const msg = o.parse({ type: 'change_password', newPassword: 'strongPW1', currentPassword: 'old' })!;
     const r = await o.dispatch(msg, handlers);
     expect(r.ok).toBe(true);
-    expect(handlers.changePassword).toHaveBeenCalledWith('old', 'strongpw');
+    expect(handlers.changePassword).toHaveBeenCalledWith('old', 'strongPW1');
   });
 });

@@ -40,6 +40,19 @@ describe('WS inbound schema', () => {
     const r = WsInboundCoreSchema.safeParse({ type: 'permission_response', sessionId: 's', promptId: 'p', decision: 'reject' });
     expect(r.success).toBe(true);
   });
+
+  it('requires currentPassword for change_password core contract', () => {
+    expect(WsInboundCoreSchema.safeParse({
+      type: 'change_password',
+      currentPassword: 'old',
+      newPassword: 'Strongpw1',
+    }).success).toBe(true);
+    expect(WsInboundCoreSchema.safeParse({
+      type: 'change_password',
+      oldPassword: 'old',
+      newPassword: 'Strongpw1',
+    }).success).toBe(false);
+  });
 });
 
 describe('WS outbound schema', () => {
@@ -63,6 +76,21 @@ describe('WS outbound schema', () => {
   it('rejects malformed totalUsage', () => {
     const r = WsOutboundCoreSchema.safeParse({ type: 'usage', totalUsage: { inputTokens: 'x' } });
     expect(r.success).toBe(false);
+  });
+
+  it('accepts password_changed with replacement token', () => {
+    const r = WsOutboundCoreSchema.safeParse({ type: 'password_changed', success: true, token: 'new-token' });
+    expect(r.success).toBe(true);
+  });
+
+  it('accepts chunked session history', () => {
+    const r = WsOutboundCoreSchema.safeParse({
+      type: 'session_history_chunk',
+      sessionId: 's1',
+      messages: [{ role: 'assistant', content: 'older answer', timestamp: Date.now() }],
+      remaining: 0,
+    });
+    expect(r.success).toBe(true);
   });
 
   it('accepts thinking_delta with optional tokens', () => {
