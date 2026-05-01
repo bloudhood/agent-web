@@ -45,13 +45,12 @@
       <div class="space-y-3">
         {#if !chatStore.streamingThinking && !chatStore.streamingText && activeTools.length === 0}
           <div class="assistant-pending flex items-start">
-            <div class="inline-flex max-w-[82%] items-center gap-2 rounded-lg border border-border/70 bg-surface-panel px-4 py-3 text-[13px] text-text-secondary shadow-1">
+            <div class="inline-flex max-w-[82%] items-center gap-2 rounded-lg border border-border/70 bg-surface-panel px-4 py-3 text-[13px] text-text-secondary shadow-1" aria-label="等待 AI 回复">
               <span class="inline-flex h-6 items-center gap-1" aria-hidden="true">
                 <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-text-muted"></span>
                 <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-text-muted [animation-delay:160ms]"></span>
                 <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-text-muted [animation-delay:320ms]"></span>
               </span>
-              <span>正在准备回复</span>
             </div>
           </div>
         {/if}

@@ -51,8 +51,7 @@ const PACKAGE_JSON_PATH = path.join(__dirname, 'package.json');
 const HOME = process.env.HOME || process.env.USERPROFILE || '';
 const CLAUDE_PROJECTS_DIR = path.join(HOME, '.claude', 'projects');
 const CODEX_SESSIONS_DIR = path.join(HOME, '.codex', 'sessions');
-const CODEX_STATE_DB_PATH = path.join(HOME, '.codex', 'state_5.sqlite');
-const CODEX_LOG_DB_PATH = path.join(HOME, '.codex', 'logs_1.sqlite');
+const GEMINI_HOME_DIR = process.env.GEMINI_CLI_HOME || process.env.GEMINI_HOME || path.join(HOME, '.gemini');
 
 const COMMAND_MANIFEST = require('./shared/commands.json');
 const COMMANDS_FOR_CLIENT = COMMAND_MANIFEST.map(({ cmd, desc, kind, agents }) => ({ cmd, desc, kind, agents }));
@@ -89,6 +88,7 @@ const { createSessionStore } = require('./lib/session-store');
 const { createAgentManager } = require('./lib/agent-manager');
 const { createRouter } = require('./lib/routes');
 const { createCodexRolloutStore } = require('./lib/codex-rollouts');
+const { createGeminiHistoryStore } = require('./lib/gemini-history');
 const shared = require('./lib/shared-state');
 const {
   sanitizeId, isPathInside, safeFilename, extFromMime, extractBearerToken,
@@ -147,6 +147,11 @@ const codexRollouts = createCodexRolloutStore({
   },
 });
 
+const geminiHistory = createGeminiHistoryStore({
+  geminiHomeDir: GEMINI_HOME_DIR,
+  sessionsDir: SESSIONS_DIR,
+});
+
 // ── Late-bound refs (filled after all modules created) ─────────────────────
 
 const lateBound = {};
@@ -163,11 +168,13 @@ const sessions = createSessionStore(SESSIONS_DIR, {
   removeAttachmentById: attachments.removeAttachmentById,
   saveAttachmentMeta: attachments.saveAttachmentMeta,
   attachmentDataPath: attachments.attachmentDataPath,
-  CLAUDE_PROJECTS_DIR, CODEX_SESSIONS_DIR, CODEX_STATE_DB_PATH, CODEX_LOG_DB_PATH,
+  CLAUDE_PROJECTS_DIR, CODEX_SESSIONS_DIR,
   getCodexRolloutFiles: codexRollouts.getCodexRolloutFiles,
   getImportedCodexThreadIds: codexRollouts.getImportedCodexThreadIds,
   parseCodexRolloutFile: codexRollouts.parseCodexRolloutFile,
   parseCodexRolloutLines: codexRollouts.parseCodexRolloutLines,
+  listGeminiSessions: geminiHistory.listGeminiSessions,
+  parseGeminiChatFile: geminiHistory.parseGeminiChatFile,
   killProcess: null, buildProcessLaunch, lateBound,
 });
 
@@ -387,6 +394,8 @@ const router = createRouter({
   handleImportNativeSession: sessions.handleImportNativeSession,
   handleListCodexSessions: sessions.handleListCodexSessions,
   handleImportCodexSession: sessions.handleImportCodexSession,
+  handleListGeminiSessions: sessions.handleListGeminiSessions,
+  handleImportGeminiSession: sessions.handleImportGeminiSession,
   handleListCwdSuggestions: sessions.handleListCwdSuggestions,
   handleBrowsePaths: sessions.handleBrowsePaths,
   handleDisconnect: sessions.handleDisconnect,

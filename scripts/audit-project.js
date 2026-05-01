@@ -30,7 +30,7 @@ const FILE_SIZE_BUDGETS = {
   'web/src/lib/ws-bridge.ts': 370,
   'web/src/app/MainLayout.svelte': 230,
   'web/src/features/settings/CcSwitchPanel.svelte': 240,
-  'web/src/features/sidebar/ImportSessionsDialog.svelte': 240,
+  'web/src/features/sidebar/ImportSessionsDialog.svelte': 280,
   'web/src/features/sidebar/Sidebar.svelte': 220,
 };
 const AGENT_BRANCH_PATTERN = /\b(?:agent|session\.agent|entry\.agent|m\.agent)\s*={2,3}\s*['"`](?:claude|codex|gemini|hermes)['"`]|\bis(?:Claude|Codex|Gemini|Hermes)Session\s*\(/;

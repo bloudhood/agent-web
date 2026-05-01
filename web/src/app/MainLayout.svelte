@@ -4,6 +4,7 @@
     type ClaudeNativeGroup,
     type ClaudeNativeSession,
     type CodexNativeSession,
+    type GeminiNativeSession,
   } from '@web/features/sidebar/ImportSessionsDialog.svelte';
   import ChatView from '@web/features/chat/ChatView.svelte';
   import SettingsView from '@web/features/settings/SettingsView.svelte';
@@ -28,6 +29,7 @@
   let importingSession = $state(false);
   let nativeGroups = $state<ClaudeNativeGroup[]>([]);
   let codexSessions = $state<CodexNativeSession[]>([]);
+  let geminiSessions = $state<GeminiNativeSession[]>([]);
 
   $effect(() => {
     if (authStore.mustChangePassword) settingsOpen = true;
@@ -44,6 +46,10 @@
       } else if (msg.type === 'codex_sessions') {
         const m = msg as unknown as { sessions?: CodexNativeSession[] };
         codexSessions = Array.isArray(m.sessions) ? m.sessions : [];
+        markImportResponse();
+      } else if (msg.type === 'gemini_sessions') {
+        const m = msg as unknown as { sessions?: GeminiNativeSession[] };
+        geminiSessions = Array.isArray(m.sessions) ? m.sessions : [];
         markImportResponse();
       } else if (msg.type === 'session_info' && importingSession) {
         importingSession = false;
@@ -94,9 +100,11 @@
     const ws = getWsClient();
     const sentClaude = ws.send({ type: 'list_native_sessions' });
     const sentCodex = ws.send({ type: 'list_codex_sessions' });
+    const sentGemini = ws.send({ type: 'list_gemini_sessions' });
     if (sentClaude) importPending += 1;
     if (sentCodex) importPending += 1;
-    if (!sentClaude || !sentCodex) {
+    if (sentGemini) importPending += 1;
+    if (!sentClaude || !sentCodex || !sentGemini) {
       toastStore.warning('未连接', 'WebSocket 未就绪，请稍后重试');
     }
     if (importPending === 0) importLoading = false;
@@ -116,6 +124,16 @@
     importingSession = true;
     importLoading = true;
     if (!getWsClient().send({ type: 'import_codex_session', threadId: session.threadId, rolloutPath: session.rolloutPath })) {
+      importingSession = false;
+      importLoading = false;
+      toastStore.warning('未连接', 'WebSocket 未就绪，请稍后重试');
+    }
+  }
+
+  function importGeminiSession(session: GeminiNativeSession) {
+    importingSession = true;
+    importLoading = true;
+    if (!getWsClient().send({ type: 'import_gemini_session', sessionId: session.sessionId, chatPath: session.chatPath })) {
       importingSession = false;
       importLoading = false;
       toastStore.warning('未连接', 'WebSocket 未就绪，请稍后重试');
@@ -200,9 +218,11 @@
     loading={importLoading}
     nativeGroups={nativeGroups}
     codexSessions={codexSessions}
+    geminiSessions={geminiSessions}
     onClose={() => (importOpen = false)}
     onRefresh={refreshImportSessions}
     onImportClaude={importClaudeSession}
     onImportCodex={importCodexSession}
+    onImportGemini={importGeminiSession}
   />
 </div>

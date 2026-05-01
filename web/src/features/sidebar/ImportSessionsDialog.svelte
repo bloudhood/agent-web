@@ -22,6 +22,17 @@
     rolloutPath?: string;
     alreadyImported?: boolean;
   }
+
+  export interface GeminiNativeSession {
+    sessionId: string;
+    title?: string;
+    cwd?: string | null;
+    updatedAt?: string | null;
+    model?: string;
+    workspace?: string;
+    chatPath?: string;
+    alreadyImported?: boolean;
+  }
 </script>
 
 <script lang="ts">
@@ -33,10 +44,12 @@
     loading?: boolean;
     nativeGroups?: ClaudeNativeGroup[];
     codexSessions?: CodexNativeSession[];
+    geminiSessions?: GeminiNativeSession[];
     onClose?: () => void;
     onRefresh?: () => void;
     onImportClaude?: (session: ClaudeNativeSession, group: ClaudeNativeGroup) => void;
     onImportCodex?: (session: CodexNativeSession) => void;
+    onImportGemini?: (session: GeminiNativeSession) => void;
   }
 
   let {
@@ -44,18 +57,21 @@
     loading = false,
     nativeGroups = [],
     codexSessions = [],
+    geminiSessions = [],
     onClose,
     onRefresh,
     onImportClaude,
     onImportCodex,
+    onImportGemini,
   }: Props = $props();
 
-  let source = $state<'claude' | 'codex'>('claude');
+  let source = $state<'claude' | 'codex' | 'gemini'>('claude');
   let query = $state('');
   const MAX_VISIBLE = 60;
 
   const claudeCount = $derived(nativeGroups.reduce((sum, group) => sum + group.sessions.length, 0));
   const codexCount = $derived(codexSessions.length);
+  const geminiCount = $derived(geminiSessions.length);
   const normalizedQuery = $derived(query.trim().toLowerCase());
 
   function matches(value: unknown) {
@@ -71,10 +87,37 @@
     return matches(session.title) || matches(session.cwd) || matches(session.threadId) || matches(session.cliVersion);
   }
 
+  function matchesGemini(session: GeminiNativeSession) {
+    return matches(session.title) || matches(session.cwd) || matches(session.sessionId) || matches(session.model) || matches(session.workspace);
+  }
+
   const filteredNativeGroups = $derived.by(() => nativeGroups
     .map((group) => ({ ...group, sessions: group.sessions.filter((session) => matchesClaude(session, group)) }))
     .filter((group) => group.sessions.length > 0));
-  const filteredCodexSessions = $derived.by(() => codexSessions.filter(matchesCodex));
+  const filteredFlatSessions = $derived.by(() => {
+    if (source === 'gemini') {
+      return geminiSessions.filter(matchesGemini).map((session) => ({
+        key: session.sessionId,
+        title: session.title,
+        cwd: session.cwd,
+        updatedAt: session.updatedAt,
+        version: session.model,
+        alreadyImported: session.alreadyImported,
+        source: 'gemini' as const,
+        raw: session,
+      }));
+    }
+    return codexSessions.filter(matchesCodex).map((session) => ({
+      key: session.threadId,
+      title: session.title,
+      cwd: session.cwd,
+      updatedAt: session.updatedAt,
+      version: session.cliVersion,
+      alreadyImported: session.alreadyImported,
+      source: 'codex' as const,
+      raw: session,
+    }));
+  });
   const visibleNativeGroups = $derived.by(() => {
     let remaining = MAX_VISIBLE;
     const groups: ClaudeNativeGroup[] = [];
@@ -86,15 +129,20 @@
     }
     return groups;
   });
-  const visibleCodexSessions = $derived(filteredCodexSessions.slice(0, MAX_VISIBLE));
+  const visibleFlatSessions = $derived(filteredFlatSessions.slice(0, MAX_VISIBLE));
   const hiddenNativeCount = $derived(filteredNativeGroups.reduce((sum, group) => sum + group.sessions.length, 0) - visibleNativeGroups.reduce((sum, group) => sum + group.sessions.length, 0));
-  const hiddenCodexCount = $derived(filteredCodexSessions.length - visibleCodexSessions.length);
+  const hiddenFlatCount = $derived(filteredFlatSessions.length - visibleFlatSessions.length);
 
   function timeLabel(value?: string | null) {
     if (!value) return '';
     const ts = Date.parse(value);
     if (!Number.isFinite(ts)) return '';
     return new Date(ts).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+  }
+
+  function importFlatSession(session: { source: 'codex' | 'gemini'; raw: CodexNativeSession | GeminiNativeSession }) {
+    if (session.source === 'gemini') onImportGemini?.(session.raw as GeminiNativeSession);
+    else onImportCodex?.(session.raw as CodexNativeSession);
   }
 </script>
 
@@ -106,6 +154,7 @@
         <select class="native-select-glass w-full px-3.5 py-2 text-sm" bind:value={source}>
           <option value="claude">Claude Code ({claudeCount})</option>
           <option value="codex">Codex CLI ({codexCount})</option>
+          <option value="gemini">Gemini CLI ({geminiCount})</option>
         </select>
       </label>
       <button
@@ -129,7 +178,7 @@
       />
     </label>
 
-    {#if loading && claudeCount === 0 && codexCount === 0}
+    {#if loading && claudeCount === 0 && codexCount === 0 && geminiCount === 0}
       <div class="flex items-center gap-2 rounded-md border border-border/70 bg-surface-page px-4 py-3 text-sm text-text-muted">
         <Spinner size="xs" />
         正在读取本机历史
@@ -177,21 +226,21 @@
         </div>
       {/if}
     {:else}
-      {#if filteredCodexSessions.length === 0}
+      {#if filteredFlatSessions.length === 0}
         <div class="rounded-md border border-border/70 bg-surface-page px-4 py-3 text-sm text-text-muted">
-          未找到可导入的 Codex CLI 会话。
+          未找到可导入的 {source === 'gemini' ? 'Gemini CLI' : 'Codex CLI'} 会话。
         </div>
       {:else}
         <div class="flex flex-col gap-2">
-          {#each visibleCodexSessions as session (session.threadId)}
+          {#each visibleFlatSessions as session (session.key)}
             <article class="rounded-lg border border-border/70 bg-surface-page p-4">
               <div class="mb-3 flex items-start justify-between gap-3">
                 <div class="min-w-0">
-                  <h4 class="truncate text-sm font-semibold text-text-primary">{session.title || session.threadId}</h4>
+                  <h4 class="truncate text-sm font-semibold text-text-primary">{session.title || session.key}</h4>
                   <div class="mt-1 flex flex-wrap gap-2 text-[11px] text-text-muted">
                     {#if session.updatedAt}<span>{timeLabel(session.updatedAt)}</span>{/if}
                     {#if session.cwd}<span class="truncate">{session.cwd}</span>{/if}
-                    {#if session.cliVersion}<span>{session.cliVersion}</span>{/if}
+                    {#if session.version}<span>{session.version}</span>{/if}
                   </div>
                 </div>
                 {#if session.alreadyImported}<Badge tone="neutral">已导入</Badge>{/if}
@@ -200,16 +249,16 @@
                 type="button"
                 class="inline-flex h-9 items-center gap-2 rounded-md bg-accent px-3.5 text-xs font-medium text-white shadow-1 transition-colors hover:bg-accent-hover disabled:bg-surface-muted disabled:text-text-muted disabled:shadow-none"
                 disabled={loading || session.alreadyImported}
-                onclick={() => onImportCodex?.(session)}
+                onclick={() => importFlatSession(session)}
               >
                 <Download size={14} />
                 导入
               </button>
             </article>
           {/each}
-          {#if hiddenCodexCount > 0}
+          {#if hiddenFlatCount > 0}
             <div class="rounded-md border border-border/70 bg-surface-page px-4 py-3 text-xs text-text-muted">
-              还有 {hiddenCodexCount} 条未显示。
+              还有 {hiddenFlatCount} 条未显示。
             </div>
           {/if}
         </div>

@@ -499,6 +499,53 @@ function createFakeCodexHistory(homeDir) {
   return { threadId, rolloutPath, stateDb, logsDb };
 }
 
+function createFakeGeminiHistory(homeDir) {
+  const geminiHome = path.join(homeDir, '.gemini');
+  const workspaceKey = 'tmp-project';
+  const chatDir = path.join(geminiHome, 'tmp', workspaceKey, 'chats');
+  const historyDir = path.join(geminiHome, 'history', workspaceKey);
+  mkdirp(chatDir);
+  mkdirp(historyDir);
+  fs.writeFileSync(path.join(historyDir, '.project_root'), '/tmp/project-c');
+
+  const sessionId = 'gemini-import-test';
+  const chatPath = path.join(chatDir, 'session-2026-03-12T00-00-gemini-import-test.jsonl');
+  const lines = [
+    JSON.stringify({
+      sessionId,
+      projectHash: 'gemini-project-hash',
+      startTime: '2026-03-12T00:00:00.000Z',
+      lastUpdated: '2026-03-12T00:00:00.000Z',
+      kind: 'main',
+    }),
+    JSON.stringify({
+      id: 'gemini-user-1',
+      timestamp: '2026-03-12T00:00:01.000Z',
+      type: 'user',
+      content: [{ text: 'Gemini import prompt' }],
+    }),
+    JSON.stringify({ $set: { lastUpdated: '2026-03-12T00:00:01.000Z' } }),
+    JSON.stringify({
+      id: 'gemini-answer-1',
+      timestamp: '2026-03-12T00:00:02.000Z',
+      type: 'gemini',
+      content: 'Gemini import answer',
+      tokens: { input: 30, cached: 4, output: 9 },
+      model: 'gemini-2.5-flash-lite',
+      toolCalls: [{
+        id: 'gemini-tool-1',
+        name: 'run_shell_command',
+        args: { command: 'echo gemini import' },
+        resultDisplay: 'gemini import tool output',
+        status: 'success',
+      }],
+    }),
+    JSON.stringify({ $set: { lastUpdated: '2026-03-12T00:00:02.000Z' } }),
+  ];
+  fs.writeFileSync(chatPath, `${lines.join('\n')}\n`);
+  return { sessionId, chatPath };
+}
+
 async function main() {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cc-web-regression-'));
   const configDir = path.join(tempRoot, 'config');
@@ -521,6 +568,7 @@ async function main() {
 
   createFakeClaudeHistory(homeDir);
   const codexFixture = createFakeCodexHistory(homeDir);
+  const geminiFixture = createFakeGeminiHistory(homeDir);
 
   const port = await getFreePort();
   const password = 'Regression!234';
@@ -1011,16 +1059,27 @@ async function main() {
     assert(importedCodex.messages?.[0]?.content === 'Codex import prompt', 'Codex import kept wrapper instructions');
     assert(importedCodex.totalUsage?.inputTokens === 20, 'Codex import usage parse failed');
 
+    ws.send(JSON.stringify({ type: 'list_gemini_sessions' }));
+    const geminiSessions = await nextMessage(messages, ws, (msg) => msg.type === 'gemini_sessions');
+    const importedGeminiItem = geminiSessions.sessions.find((item) => item.sessionId === geminiFixture.sessionId);
+    assert(importedGeminiItem, 'Gemini session listing failed');
+
+    ws.send(JSON.stringify({ type: 'import_gemini_session', sessionId: importedGeminiItem.sessionId, chatPath: importedGeminiItem.chatPath }));
+    const importedGemini = await nextMessage(messages, ws, (msg) => msg.type === 'session_info' && msg.agent === 'gemini' && msg.title === 'Gemini import prompt');
+    assert(importedGemini.messages?.[0]?.content === 'Gemini import prompt', 'Gemini import parsed wrong first message');
+    assert(importedGemini.messages?.[1]?.toolCalls?.[0]?.result === 'gemini import tool output', 'Gemini import should preserve tool output');
+    assert(importedGemini.totalUsage?.inputTokens === 30, 'Gemini import usage parse failed');
+
     const importedSessionId = importedCodex.sessionId;
     discardMessages(messages, (msg) => msg.type === 'session_list');
     ws.send(JSON.stringify({ type: 'delete_session', sessionId: importedSessionId }));
     await nextMessage(messages, ws, (msg) => msg.type === 'session_list' && !msg.sessions.some((s) => s.id === importedSessionId));
 
     assert(!fs.existsSync(path.join(sessionsDir, `${importedSessionId}.json`)), 'Deleting Codex session did not remove session JSON');
-    assert(!fs.existsSync(codexFixture.rolloutPath), 'Deleting Codex session did not remove rollout file');
+    assert(fs.existsSync(codexFixture.rolloutPath), 'Deleting Web Codex session must not remove native rollout file');
     if (HAS_SQLITE3) {
       try {
-        assert(sql(codexFixture.stateDb, `select count(*) from threads where id='${codexFixture.threadId}'`) === '0', 'Deleting Codex session did not remove thread row');
+        assert(sql(codexFixture.stateDb, `select count(*) from threads where id='${codexFixture.threadId}'`) === '1', 'Deleting Web Codex session must not remove native thread row');
       } catch (dbAssertErr) {
         console.error('  Server stderr:');
         console.error(stderr().split('\n').filter((l) => /codex-delete|sqlite|thread/i.test(l)).join('\n') || '  (no codex-delete lines in server stderr)');
@@ -1040,8 +1099,15 @@ async function main() {
         throw dbAssertErr;
       }
     } else {
-      console.log('  SKIP: sqlite3 not available (Codex DB delete assertion)');
+      console.log('  SKIP: sqlite3 not available (Codex DB preservation assertion)');
     }
+
+    const importedGeminiSessionId = importedGemini.sessionId;
+    discardMessages(messages, (msg) => msg.type === 'session_list');
+    ws.send(JSON.stringify({ type: 'delete_session', sessionId: importedGeminiSessionId }));
+    await nextMessage(messages, ws, (msg) => msg.type === 'session_list' && !msg.sessions.some((s) => s.id === importedGeminiSessionId));
+    assert(!fs.existsSync(path.join(sessionsDir, `${importedGeminiSessionId}.json`)), 'Deleting Gemini session did not remove session JSON');
+    assert(fs.existsSync(geminiFixture.chatPath), 'Deleting Web Gemini session must not remove native Gemini chat file');
 
     // --- Config backup/restore test ---
     // Write a known settings.json to the test home dir
