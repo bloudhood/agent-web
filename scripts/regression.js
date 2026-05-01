@@ -284,7 +284,11 @@ function nextMessage(messages, ws, predicate, timeoutMs = 15000) {
         clearInterval(timer);
         const recentTypes = messages.slice(-12).map((m) => m?.type).join(', ');
         const pendingTypes = messages.slice(0, 12).map((m) => m?.type).join(', ');
-        reject(new Error(`Timed out waiting for expected WebSocket message (wsState=${ws.readyState}, callSite=${callSite}, pendingTypes=[${pendingTypes}], recentTypes=[${recentTypes}])`));
+        const recentSummary = messages.slice(-12).map((m) => {
+          const body = m?.text || m?.message || '';
+          return body ? `${m?.type}:${String(body).slice(0, 120)}` : m?.type;
+        }).join(' | ');
+        reject(new Error(`Timed out waiting for expected WebSocket message (wsState=${ws.readyState}, callSite=${callSite}, pendingTypes=[${pendingTypes}], recentTypes=[${recentTypes}], recentSummary=[${recentSummary}])`));
       }
     }, 50);
   });
@@ -838,6 +842,7 @@ async function main() {
     const runningSessionList = await nextMessage(messages, ws, (msg) => msg.type === 'session_list' && msg.sessions.some((s) => s.id === firstMessageSession.sessionId && s.isRunning));
     assert(runningSessionList.sessions.some((s) => s.id === firstMessageSession.sessionId && s.isRunning), 'Running Codex session should be marked as isRunning');
     await nextMessage(messages, ws, (msg) => msg.type === 'done' && msg.sessionId === firstMessageSession.sessionId);
+    discardMessages(messages, (msg) => msg.sessionId === firstMessageSession.sessionId && ['text_delta', 'usage', 'turn_done'].includes(msg.type));
 
     ws.send(JSON.stringify({ type: 'message', text: 'slow logical completion first', sessionId: firstMessageSession.sessionId, mode: 'yolo', agent: 'codex' }));
     const slowDelta = await nextMessage(messages, ws, (msg) => msg.type === 'text_delta' && /slow logical completion first/.test(msg.text || ''));
