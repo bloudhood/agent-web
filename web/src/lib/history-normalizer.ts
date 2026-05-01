@@ -1,4 +1,4 @@
-import type { ChatMessage, ToolCall } from './stores/chat.svelte';
+import type { ChatMessage, MessageAttachment, ToolCall } from './stores/chat.svelte';
 
 export type ServerHistoryMessage = {
   role?: string;
@@ -8,7 +8,29 @@ export type ServerHistoryMessage = {
   ts?: number;
   toolCalls?: unknown[];
   thinking?: string;
+  attachments?: unknown[];
 };
+
+function normalizeAttachments(raw: unknown[] | undefined): MessageAttachment[] | undefined {
+  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+  return raw
+    .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+    .map((item) => ({
+      id: String(item.id || ''),
+      kind: typeof item.kind === 'string' ? item.kind : undefined,
+      filename: typeof item.filename === 'string'
+        ? item.filename
+        : typeof item.name === 'string'
+          ? item.name
+          : undefined,
+      mime: typeof item.mime === 'string' ? item.mime : undefined,
+      size: typeof item.size === 'number' ? item.size : undefined,
+      createdAt: typeof item.createdAt === 'string' ? item.createdAt : undefined,
+      expiresAt: typeof item.expiresAt === 'string' ? item.expiresAt : undefined,
+      storageState: typeof item.storageState === 'string' ? item.storageState : undefined,
+    }))
+    .filter((item) => item.id || item.filename || item.mime);
+}
 
 export function normalizeHistoryMessages(messages: ServerHistoryMessage[] = []): ChatMessage[] {
   return messages.map((raw) => {
@@ -33,6 +55,7 @@ export function normalizeHistoryMessages(messages: ServerHistoryMessage[] = []):
       ts,
       thinking: raw.thinking,
       toolCalls: Array.isArray(raw.toolCalls) ? (raw.toolCalls as ToolCall[]) : undefined,
+      attachments: normalizeAttachments(raw.attachments),
     };
   });
 }

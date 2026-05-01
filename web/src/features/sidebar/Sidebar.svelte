@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { Plus, Upload, Settings, MessageSquare, Trash2 } from 'lucide-svelte';
+  import { Plus, Settings, MessageSquare, Upload } from 'lucide-svelte';
   import { sessionsStore, type AgentId, type SessionMeta } from '@web/lib/stores/sessions.svelte';
+  import SessionRow from './SessionRow.svelte';
 
   interface Props {
     onNew?: () => void;
@@ -8,8 +9,9 @@
     onOpenSettings?: () => void;
     onSelect?: (id: string) => void;
     onDelete?: (id: string) => void;
+    onRename?: (id: string, title: string) => void;
   }
-  let { onNew, onImport, onOpenSettings, onSelect, onDelete }: Props = $props();
+  let { onNew, onImport, onOpenSettings, onSelect, onDelete, onRename }: Props = $props();
 
   function timeAgo(iso?: string | null): string {
     if (!iso) return '';
@@ -90,7 +92,7 @@
       <button
         type="button"
         onclick={onNew}
-        class="flex h-10 flex-1 items-center justify-center gap-2 rounded-md bg-accent px-4 text-sm font-medium text-white shadow-1 transition-colors hover:bg-accent-hover active:scale-[0.98]"
+        class="flex h-10 flex-1 items-center justify-center gap-2 rounded-md bg-accent px-4 text-sm font-medium text-white shadow-1 transition-[background-color,box-shadow,transform] duration-200 ease-out-soft hover:bg-accent-hover hover:shadow-2 active:scale-[0.98] motion-reduce:transition-none"
       >
         <Plus size={16} />
         新会话
@@ -100,7 +102,7 @@
         onclick={onImport}
         title="导入本地 CLI 会话"
         aria-label="导入"
-        class="grid h-10 w-10 place-items-center rounded-md border border-border/70 bg-surface-panel text-text-secondary transition-colors hover:bg-surface-muted hover:text-text-primary active:scale-95"
+        class="grid h-10 w-10 place-items-center rounded-md border border-border/70 bg-surface-panel text-text-secondary transition-[background-color,border-color,color,box-shadow,transform] duration-200 ease-out-soft hover:bg-surface-muted hover:text-text-primary hover:shadow-1 active:scale-95 motion-reduce:transition-none"
       >
         <Upload size={16} />
       </button>
@@ -124,60 +126,15 @@
               {#each group.items as session (session.id)}
                 {@const theme = AGENT_THEME[session.agent] ?? AGENT_THEME.claude}
                 {@const active = session.id === sessionsStore.currentId}
-              <li class="group relative flex items-center gap-2 rounded-md border px-1 transition-colors {active
-                  ? 'border-accent/25 bg-surface-panel shadow-1'
-                  : 'border-transparent hover:bg-surface-panel/75'}">
-                  <button
-                    type="button"
-                    onclick={() => onSelect?.(session.id)}
-                    class="flex flex-1 items-center gap-3 rounded-md px-2 py-2.5 text-left transition-transform active:scale-[0.99]"
-                  >
-                    <span
-                      class="grid h-9 w-9 flex-none place-items-center rounded-md font-mono text-sm font-bold"
-                      style:background-color={theme.soft}
-                      style:color={theme.color}
-                      aria-hidden="true"
-                    >
-                      {theme.glyph}
-                    </span>
-
-                    <div class="min-w-0 flex-1">
-                      <div class="flex items-center gap-1.5">
-                          <span class="truncate text-[14px] font-medium leading-tight text-text-primary">
-                          {session.title || 'Untitled'}
-                        </span>
-                        {#if session.hasUnread}
-                          <span class="h-1.5 w-1.5 flex-none rounded-full bg-accent"></span>
-                        {/if}
-                      </div>
-                      <div class="mt-1 flex items-center gap-1.5 text-[11px] text-text-muted">
-                        <span
-                          class="rounded-sm px-1.5 py-px text-[9px] font-semibold uppercase tracking-wider"
-                          style:background-color={theme.soft}
-                          style:color={theme.color}
-                        >
-                          {theme.label}
-                        </span>
-                        {#if session.isRunning}
-                          <span class="inline-flex items-center gap-1 text-state-success">
-                            <span class="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-state-success"></span>
-                            运行中
-                          </span>
-                        {:else}
-                          <span>{timeAgo(session.updated)}</span>
-                        {/if}
-                      </div>
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="删除会话"
-                    onclick={() => onDelete?.(session.id)}
-                    class="invisible mr-1 flex-none rounded-md p-1.5 text-text-muted opacity-0 transition-opacity hover:bg-state-danger/10 hover:text-state-danger focus:visible focus:opacity-100 group-hover:visible group-hover:opacity-100"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </li>
+                <SessionRow
+                  {session}
+                  {theme}
+                  {active}
+                  timeLabel={timeAgo(session.updated)}
+                  {onSelect}
+                  {onDelete}
+                  {onRename}
+                />
               {/each}
             </ul>
           </div>
@@ -192,7 +149,7 @@
       onclick={onOpenSettings}
       title="设置"
       aria-label="设置"
-      class="grid h-10 w-10 place-items-center rounded-md text-text-secondary transition-colors hover:bg-surface-muted hover:text-text-primary active:scale-95"
+      class="grid h-10 w-10 place-items-center rounded-md text-text-secondary transition-[background-color,color,transform] duration-200 ease-out-soft hover:bg-surface-muted hover:text-text-primary active:scale-95 motion-reduce:transition-none"
     >
       <Settings size={16} />
     </button>

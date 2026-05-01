@@ -16,11 +16,23 @@ export interface ToolCall {
   done?: boolean;
 }
 
+export interface MessageAttachment {
+  id: string;
+  kind?: string;
+  filename?: string;
+  mime?: string;
+  size?: number;
+  createdAt?: string;
+  expiresAt?: string;
+  storageState?: string;
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   text: string;
   thinking?: string;
   toolCalls?: ToolCall[];
+  attachments?: MessageAttachment[];
   ts: number;
 }
 

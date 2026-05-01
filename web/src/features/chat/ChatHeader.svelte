@@ -79,7 +79,7 @@
         <span
           aria-label="当前模型"
           title={currentModelLabel}
-          class="inline-flex h-8 max-w-[16rem] items-center gap-1.5 rounded-xl border border-border/70 bg-surface-raised/75 px-3 text-[12px] shadow-sm"
+          class="inline-flex h-8 max-w-[16rem] items-center gap-1.5 rounded-xl border border-border/70 bg-surface-panel/75 px-3 text-[12px] shadow-sm"
         >
           <span class="text-text-muted">模型</span>
           <span class="truncate font-medium text-text-primary">{currentModelLabel}</span>

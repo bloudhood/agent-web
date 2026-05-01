@@ -18,7 +18,7 @@
 
   const showPalette = $derived(text.startsWith('/') && !text.includes('\n') && paletteDismissedFor !== text);
   const activeAgent = $derived(sessionsStore.currentMeta?.agent ?? sessionsStore.currentAgent);
-  const supportsImageUpload = $derived(activeAgent === 'claude' || activeAgent === 'codex');
+  const supportsImageUpload = $derived(activeAgent === 'claude' || activeAgent === 'codex' || activeAgent === 'hermes');
 
   function autoResize() {
     if (!textarea) return;
@@ -91,6 +91,7 @@
     chatStore.appendMessage({
       role: 'user',
       text: value || `图片: ${pendingAttachments.map((attachment) => attachment.filename).join(', ')}`,
+      attachments: pendingAttachments.map((attachment) => ({ ...attachment, kind: 'image', storageState: 'available' })),
       ts: Date.now(),
     });
     chatStore.startTurn();

@@ -57,6 +57,7 @@ export function bindStoresToWs(ws: WsClient): () => void {
             ts?: number;
             toolCalls?: unknown[];
             thinking?: string;
+            attachments?: unknown[];
           }>;
           isRunning?: boolean;
           totalCost?: number;

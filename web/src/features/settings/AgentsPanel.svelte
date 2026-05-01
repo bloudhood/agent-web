@@ -40,7 +40,7 @@
       id: 'hermes',
       label: 'Hermes Gateway',
       description: '通过 HTTP/SSE 直接对接 Hermes Gateway（兼容 OpenAI Responses API）。',
-      capabilities: { attachments: false, thinkingBlocks: false, mcpTools: true, resume: 'web-only', modelList: 'gateway', usage: 'tokens' },
+      capabilities: { attachments: true, thinkingBlocks: false, mcpTools: true, resume: 'web-only', modelList: 'gateway', usage: 'tokens' },
     },
   ];
 </script>

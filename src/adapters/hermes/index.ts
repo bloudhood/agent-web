@@ -19,7 +19,7 @@ export interface HermesRuntimeFns {
 }
 
 const HERMES_CAPABILITIES: AgentCapabilities = {
-  attachments: false,
+  attachments: true,
   thinkingBlocks: false,
   mcpTools: true,
   permissionModes: ['yolo'],

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Image, Paperclip } from 'lucide-svelte';
   import type { ChatMessage } from '@web/lib/stores/chat.svelte';
   import ToolCallCard from './ToolCallCard.svelte';
 
@@ -10,6 +11,14 @@
 
   const isUser = $derived(message.role === 'user');
   const isSystem = $derived(message.role === 'system');
+
+  function formatFileSize(size?: number) {
+    if (!Number.isFinite(size || NaN)) return '';
+    const value = Number(size);
+    if (value >= 1024 * 1024) return `${(value / 1024 / 1024).toFixed(1)} MB`;
+    if (value >= 1024) return `${Math.round(value / 1024)} KB`;
+    return `${value} B`;
+  }
 </script>
 
 {#if isSystem}
@@ -25,6 +34,31 @@
     >
       {message.text}
       {#if streaming}<span class="ml-0.5 inline-block h-4 w-[3px] animate-pulse bg-text-primary/60 align-middle"></span>{/if}
+      {#if message.attachments && message.attachments.length > 0}
+        <div class="mt-3 flex flex-wrap gap-2">
+          {#each message.attachments as attachment, index (attachment.id || attachment.filename || index)}
+            <span
+              class="inline-flex max-w-full items-center gap-2 rounded-lg border px-2.5 py-1 text-[12px] leading-5 {isUser
+                ? 'border-white/25 bg-white/10 text-white/90'
+                : 'border-border/70 bg-surface-muted/75 text-text-secondary'}"
+              title={attachment.storageState === 'expired' ? '附件已过期' : attachment.filename || '附件'}
+            >
+              {#if attachment.kind === 'image' || attachment.mime?.startsWith('image/')}
+                <Image size={13} />
+              {:else}
+                <Paperclip size={13} />
+              {/if}
+              <span class="truncate">{attachment.filename || '附件'}</span>
+              {#if formatFileSize(attachment.size)}
+                <span class={isUser ? 'text-white/65' : 'text-text-muted'}>{formatFileSize(attachment.size)}</span>
+              {/if}
+              {#if attachment.storageState === 'expired'}
+                <span class={isUser ? 'text-white/65' : 'text-text-muted'}>已过期</span>
+              {/if}
+            </span>
+          {/each}
+        </div>
+      {/if}
     </div>
     {#if message.toolCalls && message.toolCalls.length > 0}
       <div class="flex w-full max-w-[82%] flex-col gap-3">

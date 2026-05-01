@@ -105,6 +105,7 @@ async function withServer(env, fn) {
 }
 
 async function startMockHermesServer() {
+  const requestBodies = [];
   const server = http.createServer((req, res) => {
     if (req.method === 'GET' && req.url === '/health') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -116,83 +117,87 @@ async function startMockHermesServer() {
       res.end(JSON.stringify({ error: { message: 'not found' } }));
       return;
     }
-    req.resume();
-    res.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'X-Hermes-Session-Id': 'hermes-session-regression',
+    const chunks = [];
+    req.on('data', (chunk) => chunks.push(chunk));
+    req.on('end', () => {
+      requestBodies.push(Buffer.concat(chunks).toString('utf8'));
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'X-Hermes-Session-Id': 'hermes-session-regression',
+      });
+      const writeEvent = (event, data) => {
+        res.write(`event: ${event}\n`);
+        res.write(`data: ${JSON.stringify(data)}\n\n`);
+      };
+      const responseId = 'resp_regression_hermes';
+      writeEvent('response.created', { type: 'response.created', response: { id: responseId } });
+      writeEvent('response.output_item.added', {
+        type: 'response.output_item.added',
+        output_index: 0,
+        item: {
+          id: 'fc_regression',
+          type: 'function_call',
+          status: 'in_progress',
+          name: 'terminal',
+          call_id: 'call_regression',
+          arguments: JSON.stringify({ command: 'echo hermes' }),
+        },
+      });
+      writeEvent('response.output_item.done', {
+        type: 'response.output_item.done',
+        output_index: 0,
+        item: {
+          id: 'fc_regression',
+          type: 'function_call',
+          status: 'completed',
+          name: 'terminal',
+          call_id: 'call_regression',
+          arguments: JSON.stringify({ command: 'echo hermes' }),
+        },
+      });
+      writeEvent('response.output_item.added', {
+        type: 'response.output_item.added',
+        output_index: 1,
+        item: {
+          id: 'fco_regression',
+          type: 'function_call_output',
+          call_id: 'call_regression',
+          output: [{ type: 'input_text', text: 'hermes tool output' }],
+          status: 'completed',
+        },
+      });
+      writeEvent('response.output_item.done', {
+        type: 'response.output_item.done',
+        output_index: 1,
+        item: {
+          id: 'fco_regression',
+          type: 'function_call_output',
+          call_id: 'call_regression',
+          output: [{ type: 'input_text', text: 'hermes tool output' }],
+          status: 'completed',
+        },
+      });
+      writeEvent('response.output_text.delta', {
+        type: 'response.output_text.delta',
+        delta: 'Hermes answer',
+      });
+      writeEvent('response.completed', {
+        type: 'response.completed',
+        response: {
+          id: responseId,
+          output: [
+            {
+              type: 'message',
+              role: 'assistant',
+              content: [{ type: 'output_text', text: 'Hermes answer' }],
+            },
+          ],
+          usage: { input_tokens: 11, output_tokens: 7, total_tokens: 18 },
+        },
+      });
+      res.end();
     });
-    const writeEvent = (event, data) => {
-      res.write(`event: ${event}\n`);
-      res.write(`data: ${JSON.stringify(data)}\n\n`);
-    };
-    const responseId = 'resp_regression_hermes';
-    writeEvent('response.created', { type: 'response.created', response: { id: responseId } });
-    writeEvent('response.output_item.added', {
-      type: 'response.output_item.added',
-      output_index: 0,
-      item: {
-        id: 'fc_regression',
-        type: 'function_call',
-        status: 'in_progress',
-        name: 'terminal',
-        call_id: 'call_regression',
-        arguments: JSON.stringify({ command: 'echo hermes' }),
-      },
-    });
-    writeEvent('response.output_item.done', {
-      type: 'response.output_item.done',
-      output_index: 0,
-      item: {
-        id: 'fc_regression',
-        type: 'function_call',
-        status: 'completed',
-        name: 'terminal',
-        call_id: 'call_regression',
-        arguments: JSON.stringify({ command: 'echo hermes' }),
-      },
-    });
-    writeEvent('response.output_item.added', {
-      type: 'response.output_item.added',
-      output_index: 1,
-      item: {
-        id: 'fco_regression',
-        type: 'function_call_output',
-        call_id: 'call_regression',
-        output: [{ type: 'input_text', text: 'hermes tool output' }],
-        status: 'completed',
-      },
-    });
-    writeEvent('response.output_item.done', {
-      type: 'response.output_item.done',
-      output_index: 1,
-      item: {
-        id: 'fco_regression',
-        type: 'function_call_output',
-        call_id: 'call_regression',
-        output: [{ type: 'input_text', text: 'hermes tool output' }],
-        status: 'completed',
-      },
-    });
-    writeEvent('response.output_text.delta', {
-      type: 'response.output_text.delta',
-      delta: 'Hermes answer',
-    });
-    writeEvent('response.completed', {
-      type: 'response.completed',
-      response: {
-        id: responseId,
-        output: [
-          {
-            type: 'message',
-            role: 'assistant',
-            content: [{ type: 'output_text', text: 'Hermes answer' }],
-          },
-        ],
-        usage: { input_tokens: 11, output_tokens: 7, total_tokens: 18 },
-      },
-    });
-    res.end();
   });
   const port = await getFreePort();
   await new Promise((resolve, reject) => {
@@ -201,6 +206,7 @@ async function startMockHermesServer() {
   });
   return {
     baseUrl: `http://127.0.0.1:${port}`,
+    requestBodies,
     close: () => new Promise((resolve) => server.close(resolve)),
   };
 }
@@ -588,6 +594,7 @@ async function main() {
       CODEX_PATH: MOCK_CODEX,
       GEMINI_PATH: MOCK_GEMINI,
       CC_SWITCH_CLI_PATH: MOCK_CCSWITCH,
+      CC_WEB_HERMES_WSL_DISABLED: '1',
     }, async ({ stderr }) => {
     const healthResponse = await fetch(`http://127.0.0.1:${port}/api/health`);
     assert(healthResponse.ok, '/api/health should be reachable');
@@ -633,13 +640,28 @@ async function main() {
     const agentManagerSource = fs.readFileSync(path.join(REPO_DIR, 'lib', 'agent-manager.js'), 'utf8');
     const routesSource = fs.readFileSync(path.join(REPO_DIR, 'lib', 'routes.js'), 'utf8');
     const sessionStoreSource = fs.readFileSync(path.join(REPO_DIR, 'lib', 'session-store.js'), 'utf8');
+    const serverSource = fs.readFileSync(path.join(REPO_DIR, 'server.js'), 'utf8');
+    const hermesAdapterSource = fs.readFileSync(path.join(REPO_DIR, 'src', 'adapters', 'hermes', 'index.ts'), 'utf8');
     const composerSource = fs.readFileSync(path.join(REPO_DIR, 'web', 'src', 'features', 'chat', 'Composer.svelte'), 'utf8');
     const chatHeaderSource = fs.readFileSync(path.join(REPO_DIR, 'web', 'src', 'features', 'chat', 'ChatHeader.svelte'), 'utf8');
+    const messageBubbleSource = fs.readFileSync(path.join(REPO_DIR, 'web', 'src', 'features', 'chat', 'MessageBubble.svelte'), 'utf8');
     const messageStreamSource = fs.readFileSync(path.join(REPO_DIR, 'web', 'src', 'features', 'chat', 'MessageStream.svelte'), 'utf8');
     const toolCardSource = fs.readFileSync(path.join(REPO_DIR, 'web', 'src', 'features', 'chat', 'ToolCallCard.svelte'), 'utf8');
     const accountPanelSource = fs.readFileSync(path.join(REPO_DIR, 'web', 'src', 'features', 'settings', 'AccountPanel.svelte'), 'utf8');
+    const ccSwitchPanelSource = fs.readFileSync(path.join(REPO_DIR, 'web', 'src', 'features', 'settings', 'CcSwitchPanel.svelte'), 'utf8');
+    const ccSwitchTypesSource = fs.readFileSync(path.join(REPO_DIR, 'web', 'src', 'features', 'settings', 'ccswitch-types.ts'), 'utf8');
+    const settingsViewSource = fs.readFileSync(path.join(REPO_DIR, 'web', 'src', 'features', 'settings', 'SettingsView.svelte'), 'utf8');
+    const sidebarSource = fs.readFileSync(path.join(REPO_DIR, 'web', 'src', 'features', 'sidebar', 'Sidebar.svelte'), 'utf8');
+    const sessionRowSource = fs.readFileSync(path.join(REPO_DIR, 'web', 'src', 'features', 'sidebar', 'SessionRow.svelte'), 'utf8');
     const wsBridgeSource = fs.readFileSync(path.join(REPO_DIR, 'web', 'src', 'lib', 'ws-bridge.ts'), 'utf8');
+    const historyNormalizerSource = fs.readFileSync(path.join(REPO_DIR, 'web', 'src', 'lib', 'history-normalizer.ts'), 'utf8');
     const mainLayoutSource = fs.readFileSync(path.join(REPO_DIR, 'web', 'src', 'app', 'MainLayout.svelte'), 'utf8');
+    const sidebarGestureSource = fs.readFileSync(path.join(REPO_DIR, 'web', 'src', 'app', 'sidebar-gesture.svelte.ts'), 'utf8');
+    const configManagerSource = fs.readFileSync(path.join(REPO_DIR, 'lib', 'config-manager.js'), 'utf8');
+    const hermesBridgeSource = fs.readFileSync(path.join(REPO_DIR, 'lib', 'hermes-provider-bridge.js'), 'utf8');
+    const hermesDiscoverSource = fs.readFileSync(path.join(REPO_DIR, 'lib', 'hermes-provider-scripts', 'discover.py'), 'utf8');
+    const hermesSwitchSource = fs.readFileSync(path.join(REPO_DIR, 'lib', 'hermes-provider-scripts', 'switch.py'), 'utf8');
+    const hermesInputSource = fs.readFileSync(path.join(REPO_DIR, 'lib', 'hermes-response-input.js'), 'utf8');
     const passwordPolicySource = fs.readFileSync(path.join(REPO_DIR, 'src', 'shared', 'password-policy.ts'), 'utf8');
     const tokenSource = fs.readFileSync(path.join(REPO_DIR, 'web', 'src', 'styles', 'tokens.css'), 'utf8');
     assert(/renderer\.html\s*=/.test(appSource + markdownSource) && /safeMarkdownUrl/.test(appSource + markdownSource), 'frontend markdown renderer should block raw HTML and unsafe URLs');
@@ -689,6 +711,9 @@ async function main() {
     assert(/wsSessionMap\.get\(entry\.ws\) === sessionId/.test(agentManagerSource), 'process completion should distinguish foreground and background sessions by current websocket view');
     assert(/type="file"/.test(composerSource) && /accept="image\/\*"/.test(composerSource), 'composer left action should be an image upload input');
     assert(/pendingAttachments/.test(composerSource) && /sendMessage\(getWsClient\(\), id, value,/.test(composerSource), 'composer should send uploaded attachments with the next message');
+    assert(/attachments:\s*pendingAttachments\.map/.test(composerSource), 'composer optimistic user message should keep attachment metadata');
+    assert(/normalizeAttachments/.test(historyNormalizerSource) && /attachments:\s*normalizeAttachments/.test(historyNormalizerSource), 'history normalization should preserve message attachments');
+    assert(/message\.attachments/.test(messageBubbleSource) && /formatFileSize/.test(messageBubbleSource), 'message bubbles should render attachment chips');
     assert(!/运行中/.test(chatHeaderSource), 'chat header should not show a top-level running breathing indicator');
     assert(/assistant-pending/.test(messageStreamSource), 'message stream should show an in-chat breathing placeholder while waiting for AI output');
     assert(/exitCode/.test(toolCardSource) && /tool-output/.test(toolCardSource), 'tool cards should expose structured status and output sections');
@@ -697,6 +722,33 @@ async function main() {
     assert(/case 'password_changed'/.test(wsBridgeSource) && /authStore\.setToken/.test(wsBridgeSource), 'Svelte WS bridge should handle password_changed and refresh the auth token');
     assert(/case 'session_history_chunk'/.test(wsBridgeSource) && /prependMessages/.test(wsBridgeSource), 'Svelte WS bridge should prepend chunked older session history');
     assert(/authStore\.mustChangePassword/.test(mainLayoutSource) && /settingsOpen\s*=\s*true/.test(mainLayoutSource), 'Svelte shell should force-open account settings when password change is required');
+    assert(/onpointerdown=/.test(mainLayoutSource) && /onpointermove=/.test(mainLayoutSource) && /onpointerup=/.test(mainLayoutSource), 'mobile sidebar should use pointer gestures instead of touch-only handlers');
+    assert(/createSidebarGesture/.test(mainLayoutSource), 'mobile sidebar gesture state should stay outside the layout shell');
+    assert(/SIDEBAR_GESTURE_EDGE_OFFSET\s*=\s*12/.test(sidebarGestureSource) && /SIDEBAR_GESTURE_EDGE_WIDTH\s*=\s*84/.test(sidebarGestureSource), 'mobile sidebar edge swipe should leave the browser back gesture edge alone while keeping a generous hit zone');
+    assert(/rootPointerDown/.test(mainLayoutSource + sidebarGestureSource), 'mobile sidebar edge swipe should be handled from the shell root');
+    assert(!/aria-label="滑动打开侧边栏"/.test(mainLayoutSource), 'mobile sidebar edge swipe should not use a transparent overlay that blocks left-side taps');
+    assert(/setPointerCapture/.test(sidebarGestureSource) && /releasePointerCapture/.test(sidebarGestureSource), 'mobile sidebar drag should keep pointer capture through the gesture');
+    assert(/function settleSidebarGesture/.test(sidebarGestureSource) && /settling/.test(sidebarGestureSource), 'mobile sidebar should keep the scrim mounted while settling to avoid close flicker');
+    assert(/endedIntent !== 'horizontal'[\s\S]{0,160}reset\(\)/.test(sidebarGestureSource), 'mobile sidebar should ignore tap-only pointerup and let click handlers own tap-close behavior');
+    assert(!/release\(e\);\s*reset\(\);\s*\n\s*if \(endedMode/.test(sidebarGestureSource), 'mobile sidebar pointerup should commit open or close before resetting drag state');
+    assert(/drawerStyle/.test(sidebarGestureSource) && /scrimStyle/.test(sidebarGestureSource), 'mobile sidebar should animate with drag-following drawer and scrim styles');
+    assert(!/ontouchstart=|ontouchmove=|ontouchend=/.test(mainLayoutSource), 'mobile sidebar should not rely on touch-only Svelte handlers');
+    assert(/refreshMessage/.test(ccSwitchPanelSource) && /lastUpdatedLabel/.test(ccSwitchPanelSource), 'CC Switch settings refresh should expose visible progress and last-updated feedback');
+    assert(/desktopRefreshing/.test(ccSwitchPanelSource) && /ccswitch_desktop_refresh_result/.test(ccSwitchPanelSource), 'CC Switch desktop refresh should expose visible pending feedback');
+    assert(/title=\{appState\.toolStatus\?\.status/.test(ccSwitchPanelSource), 'CC Switch CLI health badge should expose the raw tool status for diagnosis');
+    assert(/type App = 'claude' \| 'codex' \| 'gemini' \| 'hermes'/.test(ccSwitchTypesSource) && /APP_META/.test(ccSwitchPanelSource), 'CC Switch settings should include Hermes in the provider center');
+    assert(/CC_SWITCH_MANAGED_APPS = \['claude', 'codex', 'gemini', 'hermes'\]/.test(configManagerSource), 'backend CC Switch state should include Hermes alongside CLI-backed apps');
+    assert(/CC_WEB_HERMES_CONFIG_PATH/.test(hermesBridgeSource) && /\/home\/\*\/\.hermes/.test(hermesDiscoverSource), 'Hermes provider bridge should discover config via env override and WSL globs, not a single user path');
+    assert(!/const readScript = String\.raw`/.test(hermesBridgeSource) && !/const switchScript = String\.raw`/.test(hermesBridgeSource), 'Hermes provider bridge should load standalone provider scripts instead of embedding long Python strings');
+    assert(/custom_providers/.test(hermesSwitchSource) && /\.cc-web-bak/.test(hermesSwitchSource), 'Hermes provider switching should target custom_providers and create a config backup');
+    assert(/resolveHermesModelLabel/.test(configManagerSource) && /resolveHermesModelLabel/.test(serverSource) && /sessionModelLabel\(session\)/.test(sessionStoreSource), 'Hermes chat model label should come from the active Hermes provider instead of a hard-coded fallback');
+    assert(/buildHermesResponseInput/.test(agentManagerSource) && /type:\s*'input_image'/.test(hermesInputSource) && /data:\$\{attachment\.mime/.test(hermesInputSource), 'Hermes image attachments should use native Responses input_image data URLs');
+    assert(/supportsImageUpload[\s\S]*activeAgent\s*===\s*'hermes'/.test(composerSource), 'Composer upload controls should expose Hermes image attachments when Hermes capabilities are enabled');
+    assert(!/Hermes 会话暂不支持图片附件/.test(agentManagerSource), 'Hermes image attachments should not be blocked before the Gateway request');
+    assert(/attachments:\s*true/.test(hermesAdapterSource), 'Hermes adapter capability should advertise image attachments');
+    assert(/sendRenameSession/.test(mainLayoutSource) && /onRename=/.test(mainLayoutSource), 'main layout should wire sidebar title edits to rename_session');
+    assert(/SessionRow/.test(sidebarSource) && /Pencil/.test(sessionRowSource) && /onRename/.test(sessionRowSource), 'sidebar session rows should support inline title editing');
+    assert(/activeIndex/.test(settingsViewSource) && /transition-transform/.test(settingsViewSource) && /settings-tab-panel/.test(settingsViewSource), 'settings tab control should animate the sliding active pill and panel transition');
     assert(/--r-md:\s*18px/.test(tokenSource) && /--r-xl:\s*28px/.test(tokenSource), 'radius tokens should be enlarged for a softer Apple-style UI');
 
     const badAuth = await attemptWsAuth(port, { password: 'wrong-password' });
@@ -717,6 +769,7 @@ async function main() {
     assert(ccSwitchState.state.apps?.claude?.ok, 'CC Switch state should include Claude providers');
     assert(ccSwitchState.state.apps?.codex?.ok, 'CC Switch state should include Codex providers');
     assert(ccSwitchState.state.apps?.gemini?.ok, 'CC Switch state should include Gemini providers');
+    assert(ccSwitchState.state.apps?.hermes?.app === 'hermes', 'CC Switch state should include Hermes provider diagnostics');
     assert(ccSwitchState.state.apps?.claude?.envStatus?.ok === true, 'CC Switch state should include Claude env health');
     assert(ccSwitchState.state.apps?.codex?.envStatus?.ok === true, 'CC Switch state should include Codex env health');
     assert(ccSwitchState.state.apps?.gemini?.envStatus?.ok === true, 'CC Switch state should include Gemini env health');
@@ -766,7 +819,14 @@ async function main() {
       data: Buffer.from('hermes-image'),
     });
     ws.send(JSON.stringify({ type: 'message', text: 'image to hermes', attachments: [hermesAttachment], sessionId: hermesSession.sessionId, mode: 'yolo', agent: 'hermes' }));
-    await nextMessage(messages, ws, (msg) => msg.type === 'error' && /Hermes 会话暂不支持图片附件/.test(msg.message || ''));
+    await nextMessage(messages, ws, (msg) => msg.type === 'done' && msg.sessionId === hermesSession.sessionId);
+    const hermesImageBody = JSON.parse(hermesMock.requestBodies[hermesMock.requestBodies.length - 1] || '{}');
+    const hermesImageContent = hermesImageBody.input?.[0]?.content || [];
+    assert(Array.isArray(hermesImageContent), 'Hermes image request should use a Responses message content array');
+    assert(hermesImageContent.some((part) => part.type === 'input_text' && part.text === 'image to hermes'), 'Hermes image request should keep the user text as input_text');
+    assert(hermesImageContent.some((part) => part.type === 'input_image' && /^data:image\/png;base64,/.test(part.image_url || '')), 'Hermes image request should pass image bytes as native input_image data URL');
+    const storedHermesWithAttachment = JSON.parse(fs.readFileSync(path.join(sessionsDir, `${hermesSession.sessionId}.json`), 'utf8'));
+    assert(storedHermesWithAttachment.messages.some((m) => m.role === 'user' && /image to hermes/.test(m.content || '') && m.attachments?.length === 1), 'Hermes user message should persist attachment metadata');
 
     const geminiCwd = path.join(tempRoot, 'gemini-space');
     mkdirp(geminiCwd);

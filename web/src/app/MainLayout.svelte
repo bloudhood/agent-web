@@ -19,7 +19,9 @@
     sendLoadSession,
     sendNewSession,
     sendDeleteSession,
+    sendRenameSession,
   } from '@web/lib/ws-bridge';
+  import { createSidebarGesture } from './sidebar-gesture.svelte';
   import { onMount } from 'svelte';
 
   let settingsOpen = $state(false);
@@ -84,6 +86,12 @@
     sendDeleteSession(getWsClient(), id);
   }
 
+  function renameSession(id: string, title: string) {
+    if (!sendRenameSession(getWsClient(), id, title)) {
+      toastStore.warning('未连接', 'WebSocket 未就绪，请稍后重试');
+    }
+  }
+
   function importSessions() {
     importOpen = true;
     refreshImportSessions();
@@ -140,63 +148,41 @@
     }
   }
 
-  // Edge-swipe and full-pan gestures (iOS-style). Active only on touch
-  // devices; pointer-events do not trigger this.
-  let touchStartX = $state<number | null>(null);
-  let touchStartY = $state<number | null>(null);
-  let touchDelta = $state(0);
-  let dragging = $state(false);
-
-  function onTouchStart(e: TouchEvent) {
-    if (settingsOpen) return;
-    const t = e.touches[0];
-    if (!t) return;
-    touchStartX = t.clientX;
-    touchStartY = t.clientY;
-    const isEdge = t.clientX < 28;
-    dragging = uiStore.sidebarOpen ? true : isEdge;
-  }
-  function onTouchMove(e: TouchEvent) {
-    if (!dragging || touchStartX == null || touchStartY == null) return;
-    const t = e.touches[0];
-    if (!t) return;
-    const dx = t.clientX - touchStartX;
-    const dy = Math.abs(t.clientY - touchStartY);
-    if (dy > Math.abs(dx)) { dragging = false; return; }
-    touchDelta = dx;
-  }
-  function onTouchEnd() {
-    if (!dragging) return;
-    dragging = false;
-    const open = uiStore.sidebarOpen;
-    if (!open && touchDelta > 60) uiStore.openSidebar();
-    else if (open && touchDelta < -60) uiStore.closeSidebar();
-    touchStartX = null;
-    touchStartY = null;
-    touchDelta = 0;
-  }
+  const sidebarGesture = createSidebarGesture({
+    isOpen: () => uiStore.sidebarOpen,
+    open: () => uiStore.openSidebar(),
+    close: () => uiStore.closeSidebar(),
+    isBlocked: () => settingsOpen,
+  });
 </script>
 
 <div
   role="application"
-  class="flex h-[100dvh] w-full overflow-hidden bg-surface-page"
-  ontouchstart={onTouchStart}
-  ontouchmove={onTouchMove}
-  ontouchend={onTouchEnd}
+  class="flex h-[100dvh] w-full overflow-hidden overscroll-x-contain bg-surface-page"
+  onpointerdown={sidebarGesture.rootPointerDown}
+  onpointermove={sidebarGesture.pointerMove}
+  onpointerup={sidebarGesture.pointerUp}
+  onpointercancel={sidebarGesture.pointerCancel}
 >
   <!-- Mobile scrim -->
-  {#if uiStore.sidebarOpen}
+  {#if sidebarGesture.showScrim}
     <button
       type="button"
       aria-label="关闭侧边栏"
-      class="fixed inset-0 z-30 bg-black/25 backdrop-blur-[2px] md:hidden"
-      onclick={() => uiStore.closeSidebar()}
+      class="fixed inset-0 z-30 bg-black/25 backdrop-blur-[2px] transition-opacity duration-300 ease-out-soft motion-reduce:transition-none md:hidden"
+      style={sidebarGesture.scrimStyle}
+      style:touch-action={'pan-y'}
+      onclick={sidebarGesture.scrimClick}
+      onpointerdown={sidebarGesture.drawerPointerDown}
     ></button>
   {/if}
 
   <!-- Sidebar: drawer on mobile, persistent flex column on md+ -->
   <aside
-    class="fixed inset-y-0 left-0 z-40 w-[86vw] max-w-[20rem] transform transition-transform duration-300 ease-out md:static md:z-auto md:w-80 md:flex-none md:translate-x-0 {uiStore.sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}"
+    class="fixed inset-y-0 left-0 z-40 w-[86vw] max-w-[20rem] transform-gpu will-change-transform md:static md:z-auto md:w-80 md:flex-none md:!transform-none {sidebarGesture.active ? '' : 'transition-transform duration-300 ease-out-soft motion-reduce:transition-none'}"
+    style={sidebarGesture.drawerStyle}
+    style:touch-action={'pan-y'}
+    onpointerdown={sidebarGesture.drawerPointerDown}
   >
     <Sidebar
       onNew={newSession}
@@ -204,6 +190,7 @@
       onOpenSettings={() => (settingsOpen = true)}
       onSelect={selectSession}
       onDelete={deleteSession}
+      onRename={renameSession}
     />
   </aside>
 

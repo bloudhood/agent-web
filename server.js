@@ -109,6 +109,7 @@ function wsSend(ws, data, dropIfBacklogged = false) {
 
 const { plog } = createLogger(LOGS_DIR);
 const attachments = createAttachmentHelpers(ATTACHMENTS_DIR);
+let resolveHermesModelLabel = null;
 
 function modelShortName(fullModel) {
   if (!fullModel) return null;
@@ -118,7 +119,9 @@ function modelShortName(fullModel) {
 
 function sessionModelLabel(session) {
   const agent = sessions.getSessionAgent(session);
-  if (agent === 'hermes') return session?.model || 'Hermes';
+  if (agent === 'hermes') {
+    return session?.model || (typeof resolveHermesModelLabel === 'function' ? resolveHermesModelLabel() : '') || 'Hermes';
+  }
   if (agent === 'gemini') return session?.model || 'Gemini';
   if (!session?.model) return null;
   const short = modelShortName(session.model);
@@ -195,6 +198,7 @@ const configManager = createConfigManager(CONFIG_DIR, {
   CODEX_PATH,
   GEMINI_PATH,
 });
+resolveHermesModelLabel = configManager.resolveHermesModelLabel;
 
 // ── Auth ───────────────────────────────────────────────────────────────────
 

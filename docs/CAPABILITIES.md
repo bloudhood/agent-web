@@ -5,7 +5,7 @@ Locked by [tests/unit/adapters/capabilities.test.ts](../tests/unit/adapters/capa
 | Capability | Claude Code | Codex CLI | Gemini CLI | Hermes |
 |---|:---:|:---:|:---:|:---:|
 | **Connection** | spawn `claude` | spawn `codex` | spawn `gemini` | HTTP/SSE Gateway |
-| **Image attachments** | yes | yes | no | no |
+| **Image attachments** | yes | yes | no | yes |
 | **Thinking blocks** | yes | yes | yes | no |
 | **MCP tools** | yes | yes | yes | yes |
 | **Permission modes** | default · plan · yolo | default · plan · yolo | plan · yolo | yolo |
@@ -20,5 +20,6 @@ Locked by [tests/unit/adapters/capabilities.test.ts](../tests/unit/adapters/capa
 
 - **Claude inline permission prompts** — adapter capability flag is wired (`inlinePermissionPrompts: false` today). The frontend already renders `PermissionPrompt.svelte` when it receives a `permission_prompt` WS event, so we only need to add the spawn-side glue in [src/adapters/claude/index.ts](../src/adapters/claude/index.ts) that listens for the CLI's permission stream and forwards it. Estimated 2 days.
 - **Gemini image attachments** — Gemini CLI does not currently accept `--image`. When it does, flip `attachments: true` in [src/adapters/gemini/index.ts](../src/adapters/gemini/index.ts) and add a contract test.
+- **Hermes file attachments** — Hermes Gateway accepts `input_image`/`image_url` data URLs on `/v1/responses`; `file`/`input_file` parts are rejected by the gateway, so non-image files need a separate text/file-reference path instead of being advertised as native attachments.
 - **Hermes conversations panel** — server-side support for `GET /v1/conversations` is in [src/adapters/hermes/gateway-client.ts](../src/adapters/hermes/gateway-client.ts); frontend integration (sidebar tab + restore flow) is the remaining work.
 - **Codex/OpenAI Responses API direct path** — phase 3 stretch; see plan under "Optional SDK paths".

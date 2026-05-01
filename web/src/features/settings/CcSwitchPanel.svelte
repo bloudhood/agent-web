@@ -4,54 +4,44 @@
   import { Card, Spinner, Badge } from '@web/ui';
   import { getWsClient } from '@web/lib/ws-context.svelte';
   import { toastStore } from '@web/lib/stores/toast.svelte';
-
-  type App = 'claude' | 'codex' | 'gemini';
-
-  interface Provider {
-    id: string;
-    name: string;
-    apiUrl?: string;
-    current?: boolean;
-  }
-  interface AppState {
-    ok: boolean;
-    app: App;
-    providers: Provider[];
-    currentProviderId?: string;
-    currentProviderName?: string;
-    envStatus?: { ok?: boolean; summary?: string; error?: string };
-    toolStatus?: { ok?: boolean; status?: string; version?: string };
-    error?: string;
-  }
-  interface CcSwitchState {
-    cli: { ok: boolean; path?: string; error?: string };
-    toolStatus?: unknown;
-    apps: Record<App, AppState>;
-  }
+  import { APP_META, type App, type AppState, type CcSwitchState, type Health } from './ccswitch-types';
 
   let ccState: CcSwitchState | null = $state(null);
   let loading = $state(true);
+  let desktopRefreshing = $state(false);
+  let refreshMessage = $state('正在读取 CC Switch 状态…');
+  let lastUpdatedLabel = $state('');
   let switching: Record<string, boolean> = $state({});
-
-  const APP_META: Record<App, { label: string; glyph: string; color: string; soft: string }> = {
-    claude: { label: 'Claude Code', glyph: 'C', color: '#d97757', soft: 'rgba(217,119,87,0.14)' },
-    codex: { label: 'Codex CLI', glyph: 'X', color: '#6a9bcc', soft: 'rgba(106,155,204,0.16)' },
-    gemini: { label: 'Gemini CLI', glyph: 'G', color: '#788c5d', soft: 'rgba(120,140,93,0.16)' },
-  };
+  let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+  let desktopTimer: ReturnType<typeof setTimeout> | null = null;
 
   function refresh() {
+    refreshMessage = ccState ? '正在刷新 CC Switch 状态…' : '正在读取 CC Switch 状态…';
     loading = true;
-    if (!getWsClient().send({ type: 'get_ccswitch_state' })) {
+    if (refreshTimer) clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(() => {
+      loading = false;
+      toastStore.warning('刷新超时', 'CC Switch 状态暂未返回，请稍后重试');
+    }, 10_000);
+    if (!getWsClient().send({ type: 'get_ccswitch_state', forceRefresh: true })) {
       toastStore.warning('未连接', 'WebSocket 未就绪，请稍后重试');
+      if (refreshTimer) clearTimeout(refreshTimer);
       loading = false;
       return;
     }
-    setTimeout(() => { loading = false; }, 1500);
   }
 
   function refreshDesktop() {
+    desktopRefreshing = true;
+    if (desktopTimer) clearTimeout(desktopTimer);
+    desktopTimer = setTimeout(() => {
+      desktopRefreshing = false;
+      toastStore.warning('桌面端刷新超时', 'CC Switch 桌面端暂未返回结果');
+    }, 10_000);
     if (!getWsClient().send({ type: 'refresh_ccswitch_desktop' })) {
       toastStore.warning('未连接', 'WebSocket 未就绪，请稍后重试');
+      if (desktopTimer) clearTimeout(desktopTimer);
+      desktopRefreshing = false;
     }
   }
 
@@ -72,24 +62,21 @@
     return Object.entries(switching).some(([key, value]) => value && key.startsWith(`${app}:`));
   }
 
-  function healthText(status?: { ok?: boolean; summary?: string; status?: string; error?: string; version?: string }) {
+  function healthText(status?: Health) {
     if (!status) return '未检测';
     return status.ok ? '正常' : '异常';
   }
 
-  /**
-   * Listen for ccswitch_state and ccswitch_switch_result via the global WS.
-   * The bridge already routes settings messages through CCWeb-style settings
-   * handlers; here we listen directly for simplicity.
-   */
   onMount(() => {
     const ws = getWsClient();
     refresh();
-    return ws.on((msg) => {
+    const unsubscribe = ws.on((msg) => {
       if (msg.type === 'ccswitch_state') {
         const m = msg as unknown as { state: CcSwitchState };
         ccState = m.state;
+        if (refreshTimer) clearTimeout(refreshTimer);
         loading = false;
+        lastUpdatedLabel = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       } else if (msg.type === 'ccswitch_switch_result') {
         const m = msg as unknown as { success: boolean; message?: string; app?: App; providerId?: string };
         if (m.app && m.providerId) {
@@ -105,10 +92,17 @@
         }
       } else if (msg.type === 'ccswitch_desktop_refresh_result') {
         const m = msg as unknown as { success: boolean; message?: string };
+        if (desktopTimer) clearTimeout(desktopTimer);
+        desktopRefreshing = false;
         if (m.success) toastStore.success('CC Switch 桌面端', m.message);
         else toastStore.warning('CC Switch 桌面端', m.message);
       }
     });
+    return () => {
+      unsubscribe?.();
+      if (refreshTimer) clearTimeout(refreshTimer);
+      if (desktopTimer) clearTimeout(desktopTimer);
+    };
   });
 </script>
 
@@ -116,35 +110,45 @@
   <header class="mb-4 flex items-center justify-between">
     <div>
       <h3 class="text-sm font-semibold text-text-primary">CC Switch</h3>
-      <p class="mt-0.5 text-xs text-text-muted">本机 provider 状态</p>
+      <p class="mt-0.5 text-xs text-text-muted">{loading ? refreshMessage : lastUpdatedLabel ? `上次刷新 ${lastUpdatedLabel}` : '本机 provider 状态'}</p>
     </div>
     <div class="flex items-center gap-1.5">
       <button
         type="button"
         onclick={refresh}
+        disabled={loading}
         title="刷新状态"
         aria-label="刷新"
-        class="grid h-9 w-9 place-items-center rounded-md text-text-secondary transition-colors hover:bg-surface-muted hover:text-text-primary active:scale-95"
+        aria-busy={loading}
+        class="grid h-9 w-9 place-items-center rounded-md text-text-secondary transition-[background-color,color,transform] duration-200 ease-out-soft hover:bg-surface-muted hover:text-text-primary active:scale-95 disabled:opacity-60"
       >
-        <RotateCw size={14} />
+        <RotateCw size={14} class={loading ? 'animate-spin' : ''} />
       </button>
       <button
         type="button"
         onclick={refreshDesktop}
+        disabled={desktopRefreshing}
         title="刷新桌面端显示"
         aria-label="刷新桌面端显示"
-        class="grid h-9 w-9 place-items-center rounded-md text-text-secondary transition-colors hover:bg-surface-muted hover:text-text-primary active:scale-95"
+        aria-busy={desktopRefreshing}
+        class="grid h-9 w-9 place-items-center rounded-md text-text-secondary transition-[background-color,color,transform] duration-200 ease-out-soft hover:bg-surface-muted hover:text-text-primary active:scale-95 disabled:opacity-60"
       >
-        <ExternalLink size={14} />
+        {#if desktopRefreshing}<Spinner size="xs" />{:else}<ExternalLink size={14} />{/if}
       </button>
     </div>
   </header>
+
+  {#if (loading && ccState) || desktopRefreshing}
+    <div class="mb-3 flex items-center gap-2 rounded-md bg-surface-muted/60 px-3 py-2 text-xs text-text-muted">
+      <Spinner size="xs" /> {desktopRefreshing ? '正在刷新 CC Switch 桌面端显示…' : refreshMessage}
+    </div>
+  {/if}
 
   {#if loading && !ccState}
     <div class="flex items-center gap-2 text-xs text-text-muted">
       <Spinner size="xs" /> 正在读取 CC Switch 状态…
     </div>
-  {:else if ccState && ccState.cli && !ccState.cli.ok}
+  {:else if ccState && ccState.cli && !ccState.cli.ok && Object.keys(ccState.apps || {}).length === 0}
     <div class="rounded-md bg-state-warning/10 px-3 py-2 text-xs text-state-warning">
       未找到 cc-switch CLI。请安装后重试：<code class="font-mono">npm i -g @leoli0605/cc-switch</code>
       {#if ccState.cli.error}
@@ -153,6 +157,11 @@
     </div>
   {:else if ccState}
     <div class="flex flex-col gap-4">
+      {#if ccState.cli && !ccState.cli.ok}
+        <div class="rounded-md bg-state-warning/10 px-3 py-2 text-xs text-state-warning">
+          未找到 cc-switch CLI；Claude/Codex/Gemini 切换不可用，Hermes 将继续尝试读取 WSL 配置。
+        </div>
+      {/if}
       {#each Object.entries(ccState.apps) as entry (entry[0])}
         {@const app = entry[0] as App}
         {@const appState = entry[1] as AppState}
@@ -175,7 +184,9 @@
           </div>
           <div class="mb-3 flex flex-wrap gap-1.5">
             <Badge tone={appState.envStatus?.ok ? 'success' : 'warning'}>环境 {healthText(appState.envStatus)}</Badge>
-            <Badge tone={appState.toolStatus?.ok ? 'success' : 'warning'}>CLI {healthText(appState.toolStatus)}</Badge>
+            <span title={appState.toolStatus?.status || appState.toolStatus?.version || ''}>
+              <Badge tone={appState.toolStatus?.ok ? 'success' : 'warning'}>CLI {healthText(appState.toolStatus)}</Badge>
+            </span>
           </div>
 
           {#if !appState.ok}
@@ -198,7 +209,7 @@
                   }}
                 >
               {#each appState.providers as provider (provider.id)}
-                <option value={provider.id} selected={provider.id === appState.currentProviderId}>{provider.name}</option>
+                <option value={provider.id} selected={provider.id === appState.currentProviderId} disabled={provider.readonly && provider.id !== appState.currentProviderId}>{provider.name}</option>
               {/each}
                 </select>
                 {#if appSwitching}

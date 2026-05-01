@@ -27,11 +27,11 @@ describe('Adapter capability matrix (locked)', () => {
     expect(cap('gemini').usage).toBe('tokens');
     expect(cap('hermes').usage).toBe('tokens');
   });
-  it('Claude/Codex support attachments; Gemini/Hermes do not (current state)', () => {
+  it('Claude/Codex/Hermes support image attachments; Gemini does not (current state)', () => {
     expect(cap('claude').attachments).toBe(true);
     expect(cap('codex').attachments).toBe(true);
     expect(cap('gemini').attachments).toBe(false);
-    expect(cap('hermes').attachments).toBe(false);
+    expect(cap('hermes').attachments).toBe(true);
   });
   it('Hermes only supports yolo permission mode', () => {
     expect(cap('hermes').permissionModes).toEqual(['yolo']);

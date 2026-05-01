@@ -30,6 +30,7 @@
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
     /* Prevents iOS body bounce */
     overscroll-behavior: none;
+    overscroll-behavior-x: contain;
   }
 
   h1, h2, h3, h4, h5, h6,

@@ -2,13 +2,14 @@
   import { Eye, EyeOff, Sparkles } from 'lucide-svelte';
   import { Button, Card, Input, IconButton } from '@web/ui';
   import { authStore } from '@web/lib/stores/auth.svelte';
-  import { getWsClient } from '@web/lib/ws-context.svelte';
+  import { getWsClient, getWsState } from '@web/lib/ws-context.svelte';
   import { sendAuth } from '@web/lib/ws-bridge';
 
   let password = $state('');
   let showPassword = $state(false);
   let remember = $state(localStorage.getItem('cc-web-pw') !== null);
   let submitting = $state(false);
+  const wsReady = $derived(getWsState() === 'open');
 
   $effect(() => {
     const saved = localStorage.getItem('cc-web-pw');
@@ -18,10 +19,17 @@
   function handleSubmit(e: Event) {
     e.preventDefault();
     if (!password) return;
+    if (!wsReady) {
+      authStore.setError('正在连接服务器，请稍后重试');
+      return;
+    }
     submitting = true;
     if (remember) localStorage.setItem('cc-web-pw', password);
     else localStorage.removeItem('cc-web-pw');
-    sendAuth(getWsClient(), password);
+    if (!sendAuth(getWsClient(), password)) {
+      authStore.setError('正在连接服务器，请稍后重试');
+      submitting = false;
+    }
   }
 
   $effect(() => {
@@ -70,8 +78,8 @@
             </div>
           {/if}
 
-          <Button type="submit" size="lg" disabled={!password || submitting} loading={submitting}>
-            {submitting ? '登录中…' : '登录'}
+          <Button type="submit" size="lg" disabled={!password || submitting || !wsReady} loading={submitting}>
+            {submitting ? '登录中…' : wsReady ? '登录' : '连接中…'}
           </Button>
         </form>
       </div>

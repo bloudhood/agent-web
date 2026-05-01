@@ -28,8 +28,8 @@
     "dev:web": "vite --config web/vite.config.ts",
     "build:web": "vite build --config web/vite.config.ts",
     "preview:web": "vite preview --config web/vite.config.ts",
-    "e2e": "playwright test --config playwright.config.ts",
-    "e2e:headed": "playwright test --config playwright.config.ts --headed"
+    "e2e": "npm run build:web && playwright test --config playwright.config.ts",
+    "e2e:headed": "npm run build:web && playwright test --config playwright.config.ts --headed"
   },
   "dependencies": {
     "bits-ui": "^1.8.0",
