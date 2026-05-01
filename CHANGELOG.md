@@ -1,5 +1,53 @@
 # 更新记录
 
+## 2.0.0
+
+### 三阶段重构（Phase 1 + 2 + 3）
+
+后端、前端、Agent 集成层全面重构。从"工厂模块 + 巨型单文件 + 散落分支"迁移到"分层 + AgentAdapter 注册表 + Vite/TS/Svelte 前端 + 设计系统"。
+
+#### Phase 1 — 后端骨架
+
+- **类型与测试地基**：引入 TypeScript（`tsconfig.json` allowJs + checkJs + noEmit）、Vitest（`vitest.config.ts`）、zod（WS 消息 schema），134 个新单测覆盖核心层。
+- **AgentAdapter 抽象**：在 [src/core/agent/agent.ts](src/core/agent/agent.ts) 定义 `AgentAdapter`、`AgentCapabilities`、`SpawnSpec`、`GatewayCall` 接口；`AgentRegistry` 提供 `register/get/list/require`。
+- **四个 adapter**：Claude/Codex/Gemini/Hermes 拆出独立 TS 模块（`src/adapters/<id>/index.ts`），与现有 `lib/agent-runtime.js` 双轨。
+- **Orchestrator 三件套**：`ChatOrchestrator`（消息预检）、`SlashOrchestrator`（slash 命令处理）、`SettingsOrchestrator`（设置 WS 路由），切碎 `lib/routes.js` 的巨型 `deps`。
+- **持久化抽象**：`SessionRepository`（原子写、id 安全检查、redact 字段）、`AttachmentRepository`、`ConfigStore`。
+- **鲁棒性**：`heartbeat.ts`（zombie + backpressure + 结构化日志）、`recovery.ts`（幂等重连）、`logger.ts`（带级别和上下文绑定）。
+
+#### Phase 2 — 前端现代化
+
+- **构建链**：Vite + Svelte 5（runes）+ TypeScript + Tailwind v3 + bits-ui + lucide-svelte，构建产物提交到 `public/`，~50 KB gzip。
+- **设计系统**：tokens（30 个 RGB-triplet 语义化变量）→ primitives（Button/IconButton/Input/Card/Badge/Toast/Sheet/Spinner，由 Tailwind utilities 组合）→ patterns（MessageBubble/ToolCallCard/ThinkingBlock/PermissionPrompt/CommandPalette）。
+- **Stores**：以 Svelte 5 runes 重写 auth / sessions / chat / toast / ui，WS client 用 phase 1 的 zod schema 做运行时验证 + 类型推断。
+- **视图重做**：登录、主布局（侧栏/header/消息流/composer）、Settings（账户/主题/Agent 能力/关于 四个 Tab，每个 < 200 行）、移动端抽屉式侧栏。
+- **双轨过渡**：旧 IIFE 前端搬到 `public/legacy/`，`?legacy=1` 紧急回退路径。
+- **E2E**：Playwright 配置 + 桌面 / iPhone 13 双 profile，phase 3.4 接入 mock CLI 自动化。
+
+#### Phase 3 — Agent 原生度对齐 + Hermes 深化
+
+- **思考块**：`ThinkingBlock.svelte` 折叠组件、`thinking_delta` WS 事件 schema 与 store 处理。
+- **工具调用卡片**：按 `meta.kind` 分支（command_execution / file_change / mcp_tool_call / reasoning），可展开看 input/output。
+- **Permission Prompt**：`PermissionPrompt.svelte` + `permission_prompt` 出站事件 + `permission_response` 入站事件 schema，前端可点 Allow once / Always / Reject。
+- **Slash 自动补全**：`CommandPalette.svelte` 联动 `/api/slash-completions`，键盘导航。
+- **Hermes 深化**：
+  - 独立 `gateway-client.ts`（`createResponse / cancelResponse / listConversations / listResources`），处理 4xx/5xx 错误，解析 `Retry-After`。
+  - `sse-stream.ts` SSE 解析器，支持 `\n\n` / `\r\n\r\n` 帧、`Last-Event-ID` 跟踪、partial-chunk 跨 feed 拼接。
+  - `error-mapper.ts` 把 OpenAI 兼容的错误码映射成中文可操作提示。
+- **文档**：[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) 重写为反映新四层结构；新增 [docs/CAPABILITIES.md](docs/CAPABILITIES.md)（Agent 能力矩阵）和 [docs/ADDING_AN_AGENT.md](docs/ADDING_AN_AGENT.md)（30 分钟接入新 Agent）。
+- **README**：突出"4-Agent unified local console"定位 + 与 OpenWebUI/LobeChat 的对比表。
+
+### 工程化
+
+- CI 增加 `type-check`、`unit` 两个独立 job，原 Windows + Ubuntu × Node 18/22 矩阵保留。
+- `npm test` 现在串联 `check` → `type-check` → `audit:repo` → `unit` → `regression`。
+- 134 个 vitest 单测 + 17 个集成断言 + 11 个 e2e 用例。
+
+### 破坏性变更
+
+- 前端入口从 `public/index.html` 直接加载多个 IIFE 改为 Vite 构建产物。旧前端搬到 `public/legacy/`，`?legacy=1` 兜底。
+- `npm run check` 现在校验 `public/legacy/app.js` 而非 `public/app.js`。
+
 ## Unreleased
 
 ### 架构重构

@@ -1,0 +1,7 @@
+{
+  "name": "agent-web-frontend",
+  "private": true,
+  "type": "module",
+  "version": "0.0.0",
+  "description": "Agent-Web frontend (Vite + Svelte 5 + Tailwind)"
+}

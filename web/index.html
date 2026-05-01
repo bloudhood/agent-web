@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="theme-color" content="#faf9f5" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#141413" media="(prefers-color-scheme: dark)" />
+  <meta name="format-detection" content="telephone=no" />
+  <title>Agent-Web</title>
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="512x512" href="/favicon-512.png" />
+  <link rel="apple-touch-icon" href="/favicon-512.png" />
+  <script>
+    (function () {
+      var VALID = ['washi', 'washi-dark'];
+      var saved = localStorage.getItem('cc-web-theme');
+      if (!saved) saved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'washi-dark' : 'washi';
+      if (VALID.indexOf(saved) === -1) saved = 'washi';
+      document.documentElement.dataset.theme = saved;
+      // Touch-action default — prevents iOS double-tap to zoom on tap targets.
+      document.documentElement.style.touchAction = 'manipulation';
+    })();
+  </script>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

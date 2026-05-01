@@ -9,3 +9,8 @@ config/
 *.tmp
 CLAUDE.md
 AGENTS.md
+coverage/
+.vitest/
+*.tsbuildinfo
+web/dist/
+.svelte-kit/

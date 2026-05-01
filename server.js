@@ -183,6 +183,10 @@ const configManager = createConfigManager(CONFIG_DIR, {
   saveSession: sessions.saveSession,
   getSessionAgent: sessions.getSessionAgent,
   sendSessionList: sessions.sendSessionList,
+  buildProcessLaunch,
+  CLAUDE_PATH,
+  CODEX_PATH,
+  GEMINI_PATH,
 });
 
 // ── Auth ───────────────────────────────────────────────────────────────────
@@ -286,6 +290,20 @@ function formatUsageMessage(session, agent) {
 function formatDoctorMessage(agent) {
   const na = sessions.normalizeAgent(agent);
   const lines = ['CLI 检查:', cmdVersion('Claude', CLAUDE_PATH), cmdVersion('Codex', CODEX_PATH), cmdVersion('Gemini', GEMINI_PATH), '', `当前 Agent: ${sessions.agentDisplayName(na)}`];
+  if (na === 'codex') {
+    const runtime = configManager.describeCodexRuntimeSource();
+    lines.push(
+      '',
+      'Codex runtime:',
+      `source: ${runtime.source}`,
+      `mode: ${runtime.mode}`,
+      ...(runtime.profile ? [`profile: ${runtime.profile}`] : []),
+      `provider: ${runtime.provider || 'unknown'}`,
+      `base_url: ${runtime.apiBase || 'unknown'}`,
+      `model: ${runtime.model || 'unknown'}`,
+      `auth: ${runtime.auth}`,
+    );
+  }
   if (na === 'hermes') lines.push(`Hermes Gateway: ${HERMES_API_BASE}`);
   return lines.join('\n');
 }

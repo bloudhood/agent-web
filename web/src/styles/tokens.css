@@ -1,0 +1,83 @@
+/**
+ * Design tokens — semantic CSS variables that drive the theme system.
+ *
+ * Two themes share the same token names; only the values differ.
+ * RGB triplet variables (`--rgb-*`) feed Tailwind's `rgb(... / <alpha-value>)`.
+ *
+ * Token taxonomy:
+ *   surface  — pageframe / panels / muted backgrounds
+ *   text     — primary / secondary / muted
+ *   accent   — brand accent + hover + dim background
+ *   state    — success / danger / warning / info
+ *   border   — line color
+ *   radius   — sm / md / lg / xl
+ *   shadow   — 1 / 2 / 3 (elevation)
+ *   motion   — ease-out / ease-spring + 200ms / 320ms durations
+ */
+
+[data-theme='washi'],
+:root {
+  /* Surface */
+  --rgb-surface-page: 250 249 245;
+  --rgb-surface-panel: 255 255 255;
+  --rgb-surface-muted: 232 230 220;
+
+  /* Text */
+  --rgb-text-primary: 20 20 19;
+  --rgb-text-secondary: 88 86 80;
+  --rgb-text-muted: 176 174 165;
+
+  /* Accent */
+  --rgb-accent: 217 119 87;
+  --rgb-accent-hover: 190 91 61;
+  --rgb-accent-dim: 249 232 224;
+
+  /* State */
+  --rgb-success: 120 140 93;
+  --rgb-danger: 191 86 62;
+  --rgb-warning: 174 132 53;
+  --rgb-info: 106 155 204;
+
+  /* Border */
+  --rgb-border: 232 230 220;
+
+  /* Radius */
+  --r-sm: 12px;
+  --r-md: 18px;
+  --r-lg: 22px;
+  --r-xl: 28px;
+
+  /* Shadows */
+  --shadow-1: 0 1px 2px rgb(20 20 19 / 0.05), 0 1px 8px rgb(20 20 19 / 0.04);
+  --shadow-2: 0 8px 24px rgb(20 20 19 / 0.08);
+  --shadow-3: 0 18px 56px rgb(20 20 19 / 0.14);
+
+  /* Motion */
+  --duration-fast: 200ms;
+  --duration-base: 320ms;
+}
+
+[data-theme='washi-dark'] {
+  --rgb-surface-page: 20 20 19;
+  --rgb-surface-panel: 31 30 28;
+  --rgb-surface-muted: 48 46 42;
+
+  --rgb-text-primary: 250 249 245;
+  --rgb-text-secondary: 218 214 202;
+  --rgb-text-muted: 176 174 165;
+
+  --rgb-accent: 217 119 87;
+  --rgb-accent-hover: 229 139 104;
+  --rgb-accent-dim: 78 46 36;
+
+  --rgb-success: 139 160 107;
+  --rgb-danger: 224 112 84;
+  --rgb-warning: 204 159 77;
+  --rgb-info: 124 168 214;
+
+  --rgb-border: 67 64 58;
+
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.32);
+  --shadow-2: 0 6px 16px rgb(0 0 0 / 0.38);
+  --shadow-3: 0 18px 48px rgb(0 0 0 / 0.48);
+}

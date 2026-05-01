@@ -4,115 +4,217 @@ This document is the maintainer-facing map for the project. Keep it aligned with
 
 ## Goals
 
-- Local-first control surface for Claude Code, Codex CLI, Gemini CLI, and Hermes.
-- Browser UI that can survive long-running local CLI work, tab switches, and reconnects.
+- Local-first control surface for **Claude Code**, **Codex CLI**, **Gemini CLI**, and **Hermes**.
+- Browser UI that survives long-running local CLI work, tab switches, and reconnects.
 - Explicit runtime contracts so new commands, agents, settings, and recovery behavior can be added without guessing.
+
+## Top-Level Layout
+
+```text
+agent-web/
+├── server.js                 # bootstrap: load env, build container, start HTTP/WS
+├── lib/                      # legacy JS modules (still in production rotation)
+│   ├── agent-manager.js
+│   ├── agent-runtime.js
+│   ├── auth.js
+│   ├── codex-rollouts.js
+│   ├── config-manager.js
+│   ├── notify.js
+│   ├── routes.js
+│   ├── session-store.js
+│   ├── shared-state.js
+│   ├── logger.js
+│   └── utils.js
+├── src/                      # new TypeScript layer (phase 1+ refactor target)
+│   ├── core/                 # pure domain types, no IO
+│   │   ├── result.ts
+│   │   ├── session/session.ts
+│   │   └── agent/{agent,registry}.ts
+│   ├── adapters/             # one folder per built-in agent
+│   │   ├── claude/index.ts
+│   │   ├── codex/index.ts
+│   │   ├── gemini/index.ts
+│   │   ├── hermes/{index,gateway-client,sse-stream,error-mapper}.ts
+│   │   └── index.ts          # createBuiltInRegistry(runtime)
+│   ├── infra/                # IO / side-effect layer
+│   │   ├── persistence/      # SessionRepository, AttachmentRepository, ConfigStore
+│   │   ├── process/          # heartbeat (zombie + backpressure), recovery
+│   │   ├── transport/ws.ts   # typed WS dispatcher
+│   │   └── log/logger.ts
+│   ├── application/          # orchestrators (chat / slash / settings)
+│   └── shared/               # cross-boundary types: ws-messages, commands
+├── web/                      # Vite + Svelte 5 + Tailwind frontend source
+│   ├── src/{app,features,lib,ui,styles}
+│   └── vite.config.ts        # outDir: ../public
+├── public/                   # production-served assets
+│   ├── index.html            # new Svelte build
+│   ├── assets/               # hashed JS/CSS
+│   └── legacy/               # phase-2.5 fallback (?legacy=1)
+├── tests/
+│   ├── unit/                 # vitest, src/**/*.ts coverage
+│   ├── contract/             # adapter contract + WS schema validation
+│   └── e2e/                  # Playwright (desktop + iPhone profile)
+├── scripts/                  # mock CLIs + regression harness + audit
+└── shared/commands.json      # slash command manifest (single source of truth)
+```
 
 ## Runtime Shape
 
-```text
-Browser
-  | HTTP: static assets, diagnostics, uploads
-  | WebSocket: auth, session events, streaming deltas
-Node server.js
-  | local child processes: Claude / Codex / Gemini
-  | HTTP/SSE: Hermes Gateway
-  | JSON files: config, sessions, attachments
+```mermaid
+flowchart LR
+  Browser[Browser - Svelte 5]
+  WSGate[WS Gateway - zod validated]
+  ChatOrch[ChatOrchestrator]
+  SlashOrch[SlashOrchestrator]
+  Registry[AgentRegistry]
+  ClaudeAdapter[ClaudeAdapter - spawn]
+  CodexAdapter[CodexAdapter - spawn]
+  GeminiAdapter[GeminiAdapter - spawn]
+  HermesAdapter[HermesAdapter - HTTP/SSE]
+  CLIClaude[claude CLI]
+  CLICodex[codex CLI]
+  CLIGemini[gemini CLI]
+  Gateway[Hermes Gateway]
+  SessionRepo[SessionRepository]
+  ConfigStore[ConfigStore]
+
+  Browser <--> WSGate
+  WSGate --> ChatOrch
+  WSGate --> SlashOrch
+  ChatOrch --> Registry
+  Registry --> ClaudeAdapter
+  Registry --> CodexAdapter
+  Registry --> GeminiAdapter
+  Registry --> HermesAdapter
+  ClaudeAdapter --> CLIClaude
+  CodexAdapter --> CLICodex
+  GeminiAdapter --> CLIGemini
+  HermesAdapter --> Gateway
+  ChatOrch --> SessionRepo
+  ChatOrch --> ConfigStore
 ```
 
-`server.js` is the composition root. It loads `.env`, builds shared state, wires `lib/*` modules, and starts HTTP/WebSocket listeners. Business logic should live under `lib/` or `public/js/`, not in new top-level scripts.
+## AgentAdapter Contract
 
-## Backend Modules
+Defined in [src/core/agent/agent.ts](../src/core/agent/agent.ts). Every agent (built-in or third-party) must implement:
 
-| Module | Responsibility |
+```ts
+interface AgentAdapter {
+  readonly id: 'claude' | 'codex' | 'gemini' | 'hermes';
+  readonly displayName: string;
+  readonly capabilities: AgentCapabilities;
+
+  buildSpawnSpec?(session, opts): SpawnSpec | { error: string };
+  buildGatewayCall?(session, opts): GatewayCall | { error: string };
+  parseEvent(entry, raw, sessionId, emit): void;
+  listSlashCommands?(): SlashCommand[];
+}
+```
+
+**Capabilities** drive the UI:
+
+| Field | Meaning |
 |---|---|
-| `lib/auth.js` | Password migration, token TTL, ban window, password change flow |
-| `lib/session-store.js` | Session JSON persistence, session metadata, import/browse handlers |
-| `lib/agent-manager.js` | Process lifecycle, running-state recovery, foreground/background event routing |
-| `lib/agent-runtime.js` | Agent-specific spawn specs and stream/event parsing |
-| `lib/routes.js` | HTTP and WebSocket dispatch plus slash-command routing |
-| `lib/config-manager.js` | Model, Codex, CC Switch, local CLI config, developer config |
-| `lib/notify.js` | Notification provider config and delivery |
-| `lib/codex-rollouts.js` | Codex rollout/history parsing |
-| `lib/utils.js` | Safe path checks, process launch normalization, JSON/static helpers |
+| `attachments` | image attachment uploads supported |
+| `thinkingBlocks` | reasoning / thinking deltas surface in UI |
+| `mcpTools` | MCP tool calls render with server + tool name |
+| `permissionModes` | which of `default / plan / yolo` are valid |
+| `resume` | `native` (CLI/Gateway resume) / `web-only` / `none` |
+| `modelList` | source for the model picker (`cli` / `static` / `gateway`) |
+| `conversations` | `gateway` only for Hermes (lists sessions from server) |
+| `inlinePermissionPrompts` | UI can surface accept/reject buttons |
+| `usage` | `usd` / `tokens` / `both` — drives header display |
 
-When a module grows a second responsibility, prefer extracting the new responsibility behind a small factory that receives explicit dependencies. Avoid adding hidden globals.
+The frontend (`web/src/features/...`) reads `capabilities` and renders accordingly. Hard-coded `if (agent === 'claude')` branches are forbidden.
 
-## Frontend Modules
+## Built-in Adapter Capability Matrix
 
-| Module | Responsibility |
-|---|---|
-| `public/app.js` | Shared state, DOM registry, WebSocket message dispatch, app boot |
-| `public/js/ui.js` | Theme, sidebar, scroll, picker, slash completion, composer events |
-| `public/js/session.js` | Unified recent session list, create/load/delete/import flows |
-| `public/js/chat.js` | Message rendering, streaming deltas, tool call UI, generation state |
-| `public/js/settings.js` | Full-screen runtime/settings center |
-| `public/js/markdown.js` | Markdown rendering and XSS filtering |
-| `public/js/helpers.js` | Pure browser utilities |
+See [docs/CAPABILITIES.md](./CAPABILITIES.md).
 
-The frontend intentionally has no build step. Shared state is exposed through `window.CCWeb`; new code should keep DOM writes in the smallest relevant module and avoid re-binding input events in multiple places.
+## Backend Modules (current dual-track)
+
+`server.js` still wires the legacy `lib/*` factories that handle the live runtime. The TS layer in `src/` provides the typed contracts the new code must satisfy. Migration policy:
+
+1. Add new behavior in `src/`.
+2. Wrap legacy `lib/` functions in a thin TS adapter (see `src/adapters/*/index.ts`).
+3. Once a feature has full coverage in `src/` + tests, the corresponding `lib/` file can be removed.
+
+## Frontend (Vite + Svelte 5 + Tailwind)
+
+Lives under `web/`. Build outputs to `public/`. Key principles:
+
+- **Stores** use Svelte 5 runes (`$state`, `$derived`, `$effect`). See `web/src/lib/stores/`.
+- **WS client** is fully typed via `src/shared/ws-messages.ts` zod schemas. Inbound frames are validated; unknown types fall through.
+- **Capability-driven UI** — agent-specific rendering decisions read from `capabilities` rather than testing `agent === ...`.
+- **Design system** — three layers under `web/src/styles/` and `web/src/ui/`:
+  - tokens (`tokens.css`): semantic CSS variables.
+  - primitives (`Button`, `IconButton`, `Card`, `Input`, `Sheet`, `Toast`, `Badge`, `Spinner`).
+  - patterns (`MessageBubble`, `ToolCallCard`, `ThinkingBlock`, `PermissionPrompt`, `CommandPalette`).
+
+## Slash Commands
+
+There are two command sources:
+
+- **Web commands** — owned by [shared/commands.json](../shared/commands.json) and handled by Agent-Web (see [SlashOrchestrator](../src/application/slash-orchestrator.ts)).
+- **Native commands** — parsed live from each CLI's `--help`; safe read commands stream through `spawn`, while TTY/global-mutation commands return terminal-only instructions.
+
+Do not add a new slash command only in the frontend. Update [shared/commands.json](../shared/commands.json) (web) or extend the native CLI mapping in [lib/routes.js](../lib/routes.js) (native), and add regression coverage.
 
 ## Runtime Contracts
 
 ### HTTP
 
-- `GET /api/health`: public diagnostic snapshot. It must not include secrets.
-- `GET /api/commands`: slash command manifest from `shared/commands.json`.
-- `GET /api/slash-completions`: native CLI help-backed slash completion.
-- `POST /api/attachments`: authenticated image upload only.
-- Static files are served from `public/` through path-boundary checks.
+- `GET /api/health` — diagnostic snapshot (no secrets).
+- `GET /api/commands` — slash command manifest.
+- `GET /api/slash-completions?agent=...&input=...` — native CLI help-backed completion.
+- `POST /api/attachments` — authenticated image upload only.
+- Static files served from `public/`. `?legacy=1` redirects to `/legacy/` (phase 2.5 fallback).
 
 ### WebSocket
 
-Every streaming event that belongs to a session must include `sessionId`. The browser may keep multiple sessions running while viewing one foreground session. Background session events must update state without corrupting the foreground transcript.
+Inbound (validated by `WsInboundCoreSchema`):
+- `auth`, `send_message`, `abort`, `list_sessions`, `load_session`, `new_session`, `delete_session`, `rename_session`, `set_mode`, `permission_response`.
 
-Important event types:
+Outbound (validated by `WsOutboundCoreSchema`):
+- `auth_result`, `text_delta`, `thinking_delta`, `tool_start`, `tool_end`, `turn_done`, `done`, `cost`, `usage`, `error`, `permission_prompt`.
 
-- `session_info`, `session_list`
-- `text_delta`, `tool_start`, `tool_end`, `usage`, `cost`
-- `turn_done`, `done`, `error`
-- settings/config results such as `ccswitch_state`
+Every streaming event that belongs to a session **must** include `sessionId`. The browser may keep multiple sessions running while viewing one foreground session.
 
-### Slash Commands
-
-There are two command sources:
-
-- Web commands: `shared/commands.json`, handled by Agent-Web.
-- Native commands: parsed from the current local CLI `--help`; safe read commands may be executed through `spawn` and streamed, while TTY/global mutation commands must return terminal instructions.
-
-Do not add a new slash command only in the frontend. Update the manifest or native CLI mapping, then add regression coverage.
-
-### Process and Session State
+### Session State Invariants
 
 - A session can be running while not foregrounded.
-- Logical completion (`turn_done`) may arrive before the child process exits; the UI should accept follow-up input after logical completion.
-- Do not detach existing active processes just because the user switches sessions.
-- Session writes should remain atomic where existing helpers provide that behavior.
+- Logical completion (`turn_done`) may arrive before the child process exits; the UI accepts follow-up input after logical completion.
+- Switching sessions does **not** detach an active process.
+- Session writes are atomic (`SessionRepository` uses temp file + rename).
+- `recoverProcesses()` is idempotent — see `src/infra/process/recovery.ts`.
 
 ## Configuration
 
-Common runtime variables:
+| Variable | Default | Notes |
+|---|---|---|
+| `HOST` / `CC_WEB_HOST` | `0.0.0.0` | Bind address |
+| `PORT` | `8002` | Bind port |
+| `CLAUDE_PATH` | `claude` | Claude CLI path |
+| `CODEX_PATH` | `codex` | Codex CLI path |
+| `GEMINI_PATH` | `gemini` | Gemini CLI path |
+| `CC_WEB_HERMES_API_BASE` | `http://127.0.0.1:8644` | Hermes Gateway base |
+| `CC_WEB_HERMES_API_KEY` | empty | Bearer token for Gateway |
+| `CC_WEB_CONFIG_DIR` | `./config` | Per-session secrets / model templates |
+| `CC_WEB_SESSIONS_DIR` | `./sessions` | Session JSON files |
+| `CC_WEB_LOGS_DIR` | `./logs` | Rotating logs |
 
-- `HOST` / `CC_WEB_HOST`: bind address, default `0.0.0.0`.
-- `PORT`: bind port, default `8002`.
-- `CLAUDE_PATH`, `CODEX_PATH`, `GEMINI_PATH`: local CLI executables.
-- `CC_WEB_CONFIG_DIR`, `CC_WEB_SESSIONS_DIR`, `CC_WEB_LOGS_DIR`: runtime directory overrides.
-- `CC_WEB_HERMES_API_BASE`, `CC_WEB_HERMES_API_KEY`: Hermes Gateway.
+Runtime-local directories (`config/`, `sessions/`, `logs/`, `attachments/`, `.claude/`, `.codex/`) **must stay out of git**.
 
-Runtime-local directories (`config/`, `sessions/`, `logs/`, `attachments/`, `.claude/`, `.codex/`) must stay out of git.
+## Test Pyramid
 
-## Regression Expectations
+```text
+tests/
+├── unit/        # vitest — pure logic in src/, ~110+ specs
+├── contract/    # vitest — adapter capabilities + WS schemas
+└── e2e/         # Playwright — login, theme, session lifecycle
+```
 
-`npm test` is the minimum gate. It runs syntax checks and `scripts/regression.js`, which covers:
-
-- auth failure isolation
-- command manifest and slash completion contracts
-- multi-agent sessions and background event scoping
-- native command streaming
-- CC Switch integration state
-- mobile/layout invariants that previously regressed
-
-When adding behavior, prefer extending `scripts/regression.js` with a mock CLI path before changing production code.
+`npm test` runs `check` + `type-check` + `audit:repo` + `unit` + `regression`. CI additionally runs `npm run e2e` against a server seeded with mock CLIs (phase 3.4).
 
 ## Maintainer Checklist
 
@@ -121,3 +223,5 @@ When adding behavior, prefer extending `scripts/regression.js` with a mock CLI p
 - Are secrets excluded from diagnostics and logs?
 - Does the change preserve background running sessions?
 - Did `npm test` pass on a clean runtime directory?
+- For frontend changes: did `svelte-check --workspace web` pass?
+- For Hermes changes: did the SSE consumer + error mapper tests still pass?

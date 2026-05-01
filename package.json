@@ -1,6 +1,6 @@
 {
   "name": "agent-web",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "A lightweight local web shell for Claude Code, Codex, Gemini CLI, and Hermes.",
   "license": "MIT",
   "private": false,
@@ -16,13 +16,41 @@
     "node": ">=18"
   },
   "scripts": {
-    "check": "node --check server.js && node --check public/app.js && node --check scripts/regression.js && node --check scripts/audit-project.js",
+    "check": "node --check server.js && node --check public/legacy/app.js && node --check scripts/regression.js && node --check scripts/audit-project.js",
+    "type-check": "tsc --noEmit",
+    "type-check:web": "svelte-check --workspace web",
     "audit:repo": "node scripts/audit-project.js",
     "start": "node server.js",
-    "test": "npm run check && npm run audit:repo && npm run regression",
-    "regression": "node scripts/regression.js"
+    "test": "npm run check && npm run type-check && npm run audit:repo && npm run unit && npm run regression",
+    "unit": "vitest run",
+    "unit:watch": "vitest",
+    "regression": "node scripts/regression.js",
+    "dev:web": "vite --config web/vite.config.ts",
+    "build:web": "vite build --config web/vite.config.ts",
+    "preview:web": "vite preview --config web/vite.config.ts",
+    "e2e": "playwright test --config playwright.config.ts",
+    "e2e:headed": "playwright test --config playwright.config.ts --headed"
   },
   "dependencies": {
-    "ws": "^8.18.0"
+    "bits-ui": "^1.8.0",
+    "highlight.js": "^11.11.1",
+    "lucide-svelte": "^1.0.1",
+    "marked": "^14.1.4",
+    "ws": "^8.18.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "@sveltejs/vite-plugin-svelte": "^4.0.4",
+    "@types/node": "^22.19.17",
+    "@types/ws": "^8.18.1",
+    "autoprefixer": "^10.5.0",
+    "postcss": "^8.5.13",
+    "svelte": "^5.55.5",
+    "svelte-check": "^4.4.7",
+    "tailwindcss": "^3.4.19",
+    "typescript": "^5.9.3",
+    "vite": "^5.4.21",
+    "vitest": "^2.1.9"
   }
 }

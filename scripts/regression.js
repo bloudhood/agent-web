@@ -340,6 +340,31 @@ function createFakeCodexHistory(homeDir) {
     mkdirp(dir);
     fs.writeFileSync(path.join(dir, 'dummy.jsonl'), JSON.stringify({ skip: true }) + '\n');
   }
+  fs.writeFileSync(path.join(codexHome, 'auth.json'), JSON.stringify({ OPENAI_API_KEY: 'sk-local-regression' }, null, 2));
+  fs.writeFileSync(path.join(codexHome, 'config.toml'), [
+    'model = "gpt-5.5"',
+    'model_provider = "RegressionGateway"',
+    'model_context_window = 1000000',
+    'model_auto_compact_token_limit = 900000',
+    'model_reasoning_effort = "xhigh"',
+    'approval_policy = "on-failure"',
+    'sandbox_mode = "danger-full-access"',
+    '',
+    '[model_providers.RegressionGateway]',
+    'name = "Regression Gateway"',
+    'base_url = "https://gateway.example/v1"',
+    'env_key = "OPENAI_API_KEY"',
+    'wire_api = "responses"',
+    '',
+    '[plugins."github@claude-plugins-official"]',
+    'enabled = true',
+    '',
+    '[marketplaces.claude-plugins-official]',
+    'source = "https://example.invalid/plugins.git"',
+    '',
+    'memories = ["heavy"]',
+    '',
+  ].join('\n'));
   const threadId = 'codex-import-thread';
   const rolloutPath = path.join(sessionsDir, 'rollout-2026-03-12T00-00-00-codex-import-thread.jsonl');
   const rolloutLines = [
@@ -534,6 +559,7 @@ async function main() {
     const nativeTopLevel = await nativeTopLevelResponse.json();
     assert(nativeTopLevel.commands?.[0]?.kind === 'native', 'native slash completions should rank CLI commands before web helpers');
     assert(nativeTopLevel.commands.some((command) => command.cmd === '/mcp' && command.source === 'Claude CLI'), 'native slash completions should include commands parsed from the current CLI help');
+    assert(nativeTopLevel.commands.every((command) => command.kind === 'native'), 'slash completions should show only native CLI commands while keeping web slash execution manual');
     assert(nativeTopLevel.commands.filter((command) => command.cmd === '/doctor').length === 1, 'native slash completions should not duplicate native and web commands with the same name');
     const nativeSubcommandResponse = await fetch(`http://127.0.0.1:${port}/api/slash-completions?agent=claude&input=${encodeURIComponent('/mcp ')}`);
     const nativeSubcommands = await nativeSubcommandResponse.json();
@@ -541,16 +567,25 @@ async function main() {
     const nativeOptionResponse = await fetch(`http://127.0.0.1:${port}/api/slash-completions?agent=claude&input=${encodeURIComponent('/mcp add --')}`);
     const nativeOptions = await nativeOptionResponse.json();
     assert(nativeOptions.commands.some((command) => command.cmd === '--transport' && command.completion === '/mcp add --transport '), 'native slash completions should expose CLI options for subcommands');
-    const appSource = fs.readFileSync(path.join(REPO_DIR, 'public', 'app.js'), 'utf8');
-    const indexSource = fs.readFileSync(path.join(REPO_DIR, 'public', 'index.html'), 'utf8');
-    const settingsSource = fs.readFileSync(path.join(REPO_DIR, 'public', 'js', 'settings.js'), 'utf8');
-    const sessionSource = fs.readFileSync(path.join(REPO_DIR, 'public', 'js', 'session.js'), 'utf8');
-    const uiSource = fs.readFileSync(path.join(REPO_DIR, 'public', 'js', 'ui.js'), 'utf8');
-    const styleSource = fs.readFileSync(path.join(REPO_DIR, 'public', 'style.css'), 'utf8');
-    const markdownSource = fs.readFileSync(path.join(REPO_DIR, 'public', 'js', 'markdown.js'), 'utf8');
+    // Phase 2.5: legacy frontend lives under public/legacy/. The new Svelte
+    // build (public/index.html, public/assets/*) is verified separately by
+    // tests/e2e and svelte-check, so the legacy assertions below now read
+    // from public/legacy/.
+    const appSource = fs.readFileSync(path.join(REPO_DIR, 'public', 'legacy', 'app.js'), 'utf8');
+    const indexSource = fs.readFileSync(path.join(REPO_DIR, 'public', 'legacy', 'index.html'), 'utf8');
+    const settingsSource = fs.readFileSync(path.join(REPO_DIR, 'public', 'legacy', 'js', 'settings.js'), 'utf8');
+    const sessionSource = fs.readFileSync(path.join(REPO_DIR, 'public', 'legacy', 'js', 'session.js'), 'utf8');
+    const uiSource = fs.readFileSync(path.join(REPO_DIR, 'public', 'legacy', 'js', 'ui.js'), 'utf8');
+    const styleSource = fs.readFileSync(path.join(REPO_DIR, 'public', 'legacy', 'style.css'), 'utf8');
+    const markdownSource = fs.readFileSync(path.join(REPO_DIR, 'public', 'legacy', 'js', 'markdown.js'), 'utf8');
     const agentManagerSource = fs.readFileSync(path.join(REPO_DIR, 'lib', 'agent-manager.js'), 'utf8');
     const routesSource = fs.readFileSync(path.join(REPO_DIR, 'lib', 'routes.js'), 'utf8');
     const sessionStoreSource = fs.readFileSync(path.join(REPO_DIR, 'lib', 'session-store.js'), 'utf8');
+    const composerSource = fs.readFileSync(path.join(REPO_DIR, 'web', 'src', 'features', 'chat', 'Composer.svelte'), 'utf8');
+    const chatHeaderSource = fs.readFileSync(path.join(REPO_DIR, 'web', 'src', 'features', 'chat', 'ChatHeader.svelte'), 'utf8');
+    const messageStreamSource = fs.readFileSync(path.join(REPO_DIR, 'web', 'src', 'features', 'chat', 'MessageStream.svelte'), 'utf8');
+    const toolCardSource = fs.readFileSync(path.join(REPO_DIR, 'web', 'src', 'features', 'chat', 'ToolCallCard.svelte'), 'utf8');
+    const tokenSource = fs.readFileSync(path.join(REPO_DIR, 'web', 'src', 'styles', 'tokens.css'), 'utf8');
     assert(/renderer\.html\s*=/.test(appSource + markdownSource) && /safeMarkdownUrl/.test(appSource + markdownSource), 'frontend markdown renderer should block raw HTML and unsafe URLs');
     assert(!/\.login-box\s+button\s*\{[^}]*width:\s*100%/s.test(styleSource), 'login box must not apply full-width button styles to every nested button');
     assert(/class="[^"]*\blogin-submit-btn\b[^"]*"/.test(indexSource), 'login submit button should have an explicit component class');
@@ -596,6 +631,12 @@ async function main() {
     assert(!/function handleLoadSession[\s\S]*?if \(entry\.ws === ws\) entry\.ws = null;[\s\S]*?wsSessionMap\.set\(ws, sessionId\)/.test(sessionStoreSource), 'loading one session must not detach other active sessions on the same websocket');
     assert(!/const currentSessionId = session\.id;[\s\S]*?if \(entry\.ws === ws\) entry\.ws = null;[\s\S]*?wsSessionMap\.set\(ws, currentSessionId\)/.test(agentManagerSource), 'starting a message in one session must not detach other active sessions on the same websocket');
     assert(/wsSessionMap\.get\(entry\.ws\) === sessionId/.test(agentManagerSource), 'process completion should distinguish foreground and background sessions by current websocket view');
+    assert(/type="file"/.test(composerSource) && /accept="image\/\*"/.test(composerSource), 'composer left action should be an image upload input');
+    assert(/pendingAttachments/.test(composerSource) && /sendMessage\(getWsClient\(\), id, value,/.test(composerSource), 'composer should send uploaded attachments with the next message');
+    assert(!/运行中/.test(chatHeaderSource), 'chat header should not show a top-level running breathing indicator');
+    assert(/assistant-pending/.test(messageStreamSource), 'message stream should show an in-chat breathing placeholder while waiting for AI output');
+    assert(/exitCode/.test(toolCardSource) && /tool-output/.test(toolCardSource), 'tool cards should expose structured status and output sections');
+    assert(/--r-md:\s*18px/.test(tokenSource) && /--r-xl:\s*28px/.test(tokenSource), 'radius tokens should be enlarged for a softer Apple-style UI');
 
     const badAuth = await attemptWsAuth(port, { password: 'wrong-password' });
     assert(badAuth.success === false && badAuth.banned === false, 'wrong password should return auth_result without crashing the server');
@@ -605,6 +646,10 @@ async function main() {
     const { ws, messages, token } = await connectWs(port, password);
 
     await nextMessage(messages, ws, (msg) => msg.type === 'session_list');
+
+    ws.send(JSON.stringify({ type: 'new_session', agent: 'codex', mode: 'plan' }));
+    const defaultCodexSession = await nextMessage(messages, ws, (msg) => msg.type === 'session_info' && msg.agent === 'codex' && msg.title === 'New Chat');
+    assert(defaultCodexSession.cwd === homeDir, 'Codex new_session should use the local home workspace by default');
 
     ws.send(JSON.stringify({ type: 'get_ccswitch_state' }));
     const ccSwitchState = await nextMessage(messages, ws, (msg) => msg.type === 'ccswitch_state' && msg.state?.cli?.ok);
@@ -688,6 +733,25 @@ async function main() {
     assert(!/256-color|YOLO mode is enabled/.test(geminiFailure.message || ''), 'Gemini benign stderr warnings should not become user-facing errors');
     await nextMessage(messages, ws, (msg) => msg.type === 'done' && msg.sessionId === geminiSession.sessionId);
 
+    const localCodexCwd = path.join(tempRoot, 'codex-local-space');
+    mkdirp(localCodexCwd);
+    ws.send(JSON.stringify({ type: 'new_session', agent: 'codex', cwd: localCodexCwd, mode: 'plan' }));
+    const localCodexSession = await nextMessage(messages, ws, (msg) => msg.type === 'session_info' && msg.agent === 'codex' && msg.cwd === localCodexCwd);
+    ws.send(JSON.stringify({ type: 'message', text: 'local codex provider check', sessionId: localCodexSession.sessionId, mode: 'plan', agent: 'codex' }));
+    await nextMessage(messages, ws, (msg) => msg.type === 'done' && msg.sessionId === localCodexSession.sessionId);
+    const localCodexRuntimeConfig = fs.readFileSync(path.join(configDir, 'codex-session-home', localCodexSession.sessionId, 'config.toml'), 'utf8');
+    assert(/model_provider = "RegressionGateway"/.test(localCodexRuntimeConfig), 'Codex local runtime should preserve the active model_provider');
+    assert(/\[model_providers\.RegressionGateway\]/.test(localCodexRuntimeConfig), 'Codex local runtime should preserve the active provider section');
+    assert(/base_url = "https:\/\/gateway\.example\/v1"/.test(localCodexRuntimeConfig), 'Codex local runtime should preserve the active provider base_url');
+    assert(!/\[plugins\.|\[marketplaces\.|memories\s*=/.test(localCodexRuntimeConfig), 'Codex local runtime should not copy plugin, marketplace, or memory bootstrap settings');
+
+    ws.send(JSON.stringify({ type: 'message', text: '/doctor', sessionId: localCodexSession.sessionId, mode: 'plan', agent: 'codex' }));
+    const codexDoctor = await nextMessage(messages, ws, (msg) => msg.type === 'system_message' && /Codex runtime/.test(msg.message || ''));
+    assert(/provider:\s*RegressionGateway/.test(codexDoctor.message || ''), 'Codex /doctor should expose active local provider');
+    assert(/base_url:\s*https:\/\/gateway\.example\/v1/.test(codexDoctor.message || ''), 'Codex /doctor should expose active local base_url');
+    assert(/model:\s*gpt-5\.5/.test(codexDoctor.message || ''), 'Codex /doctor should expose active local model');
+    assert(!/sk-local-regression/.test(codexDoctor.message || ''), 'Codex /doctor should not expose API keys');
+
     ws.send(JSON.stringify({
       type: 'save_codex_config',
       config: {
@@ -761,6 +825,7 @@ async function main() {
     ws.send(JSON.stringify({ type: 'message', text: 'first codex prompt', attachments: [codexAttachment], mode: 'yolo', agent: 'codex' }));
     const firstMessageSession = await nextMessage(messages, ws, (msg) => msg.type === 'session_info' && msg.agent === 'codex' && msg.title === 'first codex prompt');
     assert(firstMessageSession.agent === 'codex', 'First-message path created wrong agent');
+    assert(firstMessageSession.cwd === homeDir, 'First-message Codex sessions should use the local home workspace by default');
     const runningSessionList = await nextMessage(messages, ws, (msg) => msg.type === 'session_list' && msg.sessions.some((s) => s.id === firstMessageSession.sessionId && s.isRunning));
     assert(runningSessionList.sessions.some((s) => s.id === firstMessageSession.sessionId && s.isRunning), 'Running Codex session should be marked as isRunning');
     await nextMessage(messages, ws, (msg) => msg.type === 'done' && msg.sessionId === firstMessageSession.sessionId);
